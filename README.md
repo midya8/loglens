@@ -44,7 +44,9 @@ print("ips behind 5xx:", top_error_ips(records))
 ## Design notes
 
 - **Incident timeline.** `--timeline` buckets requests and 5xxs per minute
-  (or any bucket size) so you can see exactly when an incident started.
+  (or any bucket size) so you can see exactly when an incident started, and
+  flags spike buckets where the error rate and count both clear a threshold
+  so a single error in a quiet minute never reads as a spike.
 - **Latency view.** `--latency` reports p50/p95/p99 and the slowest requests
   from JSON logs carrying `duration_ms` or nginx-style `request_time`, and
   from combined-format logs with `$request_time` appended (a trailing
