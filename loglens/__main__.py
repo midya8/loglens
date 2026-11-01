@@ -18,6 +18,7 @@ from .stats import (
     ip_breakdown,
     latency_summary,
     path_breakdown,
+    path_status_breakdown,
     slowest_requests,
     status_classes,
     status_distribution,
@@ -72,6 +73,8 @@ def main(argv=None) -> int:
                         help="per-source-IP breakdown: volume, error rate, p95 latency, worst first")
     parser.add_argument("--by-path", action="store_true",
                         help="per-path breakdown: volume, error rate, p95 latency, worst first")
+    parser.add_argument("--path-status", action="store_true",
+                        help="pivot: failing paths (4xx+5xx) with per-status-code counts, worst first")
     parser.add_argument("--by-hour", action="store_true",
                         help="per-hour-of-day (UTC) volume, error rate and p95 - daily patterns")
     parser.add_argument("--by-size", action="store_true",
@@ -188,6 +191,16 @@ def main(argv=None) -> int:
             p95 = f"{row['p95_ms']:.0f} ms" if row['p95_ms'] is not None else "-"
             print(f"  {row['path']:40s} {row['requests']:>6} {row['errors']:>4} "
                   f"{row['error_rate']:>6.0%} {p95:>9}")
+    if args.path_status:
+        rows = path_status_breakdown(records, args.top)
+        if not rows:
+            print("\nFailing paths by status: none")
+        else:
+            print(f"\nFailing paths by status code (top {args.top}, 4xx+5xx):")
+            print(f"  {'path':40s} {'fail':>6} {'req':>6}  codes")
+            for row in rows:
+                codes = ", ".join(f"{code}: {n}" for code, n in row["statuses"].items())
+                print(f"  {row['path']:40s} {row['failing']:>6} {row['requests']:>6}  {codes}")
     if args.spikes:
         windows = spike_windows(bucket_records(records, args.bucket),
                                 bucket_seconds=args.bucket)
@@ -360,6 +373,13 @@ def _summary(records, args, comparison=None, log_comparison=None) -> dict:
         summary["error_request_count"] = len(failing)
     if getattr(args, "by_ip", False):
         summary["ip_breakdown"] = ip_breakdown(records, args.top, sort=args.sort)
+    if getattr(args, "path_status", False):
+        summary["path_status"] = [
+            {"path": row["path"], "requests": row["requests"],
+             "failing": row["failing"],
+             "statuses": {str(code): n for code, n in row["statuses"].items()}}
+            for row in path_status_breakdown(records, args.top)
+        ]
     if getattr(args, "by_path", False):
         summary["path_breakdown"] = path_breakdown(records, args.top, sort=args.sort)
     if getattr(args, "by_hour", False):
