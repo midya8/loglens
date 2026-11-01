@@ -517,3 +517,86 @@ class TestVsBaseline(unittest.TestCase):
                                  capture_output=True, text=True)
         self.assertEqual(out.returncode, 2)
         self.assertIn("cannot read baseline log", out.stderr)
+
+
+APDEX_LOG = """\
+{"time":"2026-10-31T22:00:01Z","method":"GET","path":"/fast","status":200,"duration_ms":100.0}
+{"time":"2026-10-31T22:00:02Z","method":"GET","path":"/mid","status":200,"duration_ms":1000.0}
+{"time":"2026-10-31T22:00:03Z","method":"GET","path":"/slow","status":200,"duration_ms":9000.0}
+{"time":"2026-10-31T22:00:04Z","method":"GET","path":"/fast","status":200}
+"""
+
+NODUR_LOG = """\
+{"time":"2026-10-31T22:00:01Z","method":"GET","path":"/a","status":200}
+"""
+
+
+class TestApdexCLI(unittest.TestCase):
+    def run_apdex(self, argv, log=APDEX_LOG):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(log)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = main(argv + [str(path)])
+            return code, buf.getvalue()
+
+    def test_text_overall_and_per_path(self):
+        code, out = self.run_apdex(["--apdex", "0.5"])
+        self.assertEqual(code, 0)
+        self.assertIn("Apdex (T=0.5s): 0.500 over 3 timed requests "
+                      "(1 satisfied, 1 tolerating, 1 frustrated)", out)
+        # worst first within the Apdex section
+        section = out[out.index("Apdex (T=0.5s)"):]
+        self.assertLess(section.index("/slow"), section.index("/mid"))
+        self.assertLess(section.index("/mid"), section.index("/fast"))
+
+    def test_no_flag_no_section(self):
+        code, out = self.run_apdex([])
+        self.assertNotIn("Apdex", out)
+
+    def test_no_durations_prints_note(self):
+        code, out = self.run_apdex(["--apdex", "0.5"], log=NODUR_LOG)
+        self.assertEqual(code, 0)
+        self.assertIn("no durations in log", out)
+
+    def test_json_block(self):
+        code, out = self.run_apdex(["--apdex", "0.5", "--json"])
+        data = json.loads(out)
+        apdex = data["apdex"]
+        self.assertEqual(apdex["threshold_s"], 0.5)
+        self.assertEqual(apdex["samples"], 3)
+        self.assertAlmostEqual(apdex["score"], 0.5)
+        self.assertEqual(apdex["by_path"][0]["path"], "/slow")
+
+    def test_min_apdex_pass_exit_0(self):
+        code, out = self.run_apdex(["--apdex", "0.5", "--min-apdex", "0.5"])
+        self.assertEqual(code, 0)
+        self.assertIn("Gate passed: Apdex 0.500 meets --min-apdex 0.500", out)
+
+    def test_min_apdex_breach_exit_1(self):
+        code, out = self.run_apdex(["--apdex", "0.5", "--min-apdex", "0.94"])
+        self.assertEqual(code, 1)
+        self.assertIn("GATE FAILED: Apdex 0.500 below --min-apdex 0.940", out)
+
+    def test_min_apdex_json_fields(self):
+        code, out = self.run_apdex(["--apdex", "0.5", "--min-apdex", "0.94", "--json"])
+        self.assertEqual(code, 1)
+        data = json.loads(out)
+        self.assertEqual(data["min_apdex"], 0.94)
+        self.assertFalse(data["apdex_met"])
+
+    def test_min_apdex_without_apdex_is_usage_error(self):
+        with self.assertRaises(SystemExit) as ctx:
+            self.run_apdex(["--min-apdex", "0.9"])
+        self.assertEqual(ctx.exception.code, 2)
+
+    def test_min_apdex_no_durations_fails_gate(self):
+        code, out = self.run_apdex(["--apdex", "0.5", "--min-apdex", "0.9"],
+                                   log=NODUR_LOG)
+        self.assertEqual(code, 1)
+
+    def test_report_includes_apdex_section(self):
+        code, out = self.run_apdex(["--report", "T", "--apdex", "0.5"])
+        self.assertIn("## Apdex (T=0.5s)", out)
+        self.assertIn("| `/slow` | 0.000 | 1 |", out)
