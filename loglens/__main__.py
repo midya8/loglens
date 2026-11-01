@@ -14,6 +14,7 @@ from .stats import (
     latency_summary,
     path_breakdown,
     slowest_requests,
+    status_classes,
     status_distribution,
     top_error_ips,
     top_paths,
@@ -76,6 +77,8 @@ def main(argv=None) -> int:
     print(f"Parsed records: {len(records)}")
     print(f"Error rate (5xx): {error_rate(records):.1%}")
     print("Status distribution:", dict(sorted(status_distribution(records).items())))
+    classes = status_classes(records)
+    print("Status classes:", {k: v for k, v in classes.items() if v})
     print(f"Top {args.top} paths:", top_paths(records, args.top))
     print(f"Top {args.top} error paths:", top_paths(records, args.top, errors_only=True))
     print(f"Top {args.top} error source IPs:", top_error_ips(records, args.top))
@@ -116,6 +119,7 @@ def _summary(records, args, comparison=None) -> dict:
         "parsed_records": len(records),
         "error_rate_5xx": error_rate(records),
         "status_distribution": {str(k): v for k, v in sorted(status_distribution(records).items())},
+        "status_classes": status_classes(records),
         "top_paths": [
             {"path": path, "count": count}
             for path, count in top_paths(records, args.top)
