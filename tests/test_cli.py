@@ -417,3 +417,53 @@ class TestLatencyDistCLI(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestBySize(unittest.TestCase):
+    def _log(self, tmp):
+        import json as _json
+        from pathlib import Path as _Path
+        path = _Path(tmp) / "size.log"
+        lines = [
+            '1.1.1.1 - - [30/Oct/2026:14:05:01 +0000] "GET /big HTTP/1.1" 200 90000 "-" "a"',
+            '1.1.1.2 - - [30/Oct/2026:14:05:02 +0000] "GET /small HTTP/1.1" 200 100 "-" "a"',
+        ]
+        path.write_text("\n".join(lines) + "\n")
+        return str(path)
+
+    def test_by_size_text_output(self):
+        import subprocess, sys
+        from tempfile import TemporaryDirectory as _TD
+        with _TD() as tmp:
+            out = subprocess.run([sys.executable, "-m", "loglens",
+                                  self._log(tmp), "--by-size"],
+                                 capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0)
+        self.assertIn("Response sizes:", out.stdout)
+        self.assertIn("/big", out.stdout)
+        self.assertIn("share", out.stdout)
+
+    def test_by_size_in_json_summary(self):
+        import json as _json, subprocess, sys
+        from tempfile import TemporaryDirectory as _TD
+        with _TD() as tmp:
+            out = subprocess.run([sys.executable, "-m", "loglens",
+                                  self._log(tmp), "--by-size", "--json"],
+                                 capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0)
+        payload = _json.loads(out.stdout)
+        self.assertEqual(payload["sizes"]["total_bytes"], 90100)
+        self.assertEqual(payload["top_paths_by_bytes"][0]["path"], "/big")
+
+    def test_by_size_without_size_data(self):
+        import subprocess, sys
+        from pathlib import Path as _Path
+        from tempfile import TemporaryDirectory as _TD
+        with _TD() as tmp:
+            path = _Path(tmp) / "nosize.log"
+            path.write_text('{"time": "t", "method": "GET", "path": "/a", "status": 200}\n')
+            out = subprocess.run([sys.executable, "-m", "loglens", str(path),
+                                  "--format", "json", "--by-size"],
+                                 capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0)
+        self.assertIn("no size data", out.stdout)

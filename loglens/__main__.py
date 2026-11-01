@@ -23,7 +23,10 @@ from .stats import (
     top_paths,
     top_referers,
     hourly_breakdown,
+    human_bytes,
     latency_histogram,
+    size_summary,
+    top_paths_by_bytes,
     top_user_agents,
 )
 from .timeline import bucket_records, format_timeline, spike_windows, throughput_summary
@@ -61,6 +64,8 @@ def main(argv=None) -> int:
                         help="per-path breakdown: volume, error rate, p95 latency, worst first")
     parser.add_argument("--by-hour", action="store_true",
                         help="per-hour-of-day (UTC) volume, error rate and p95 - daily patterns")
+    parser.add_argument("--by-size", action="store_true",
+                        help="response-size analysis: total/mean/max bytes and heaviest paths")
     parser.add_argument("--spikes", action="store_true",
                         help="group consecutive spike buckets into flare-up windows")
     parser.add_argument("--throughput", action="store_true",
@@ -181,6 +186,18 @@ def main(argv=None) -> int:
         for row in latency_histogram(records):
             bar = "#" * row["count"]
             print(f"  {row['bucket']:>9s} {row['count']:>5}  {bar}")
+    if args.by_size:
+        sizes = size_summary(records)
+        if sizes is None:
+            print("\nResponse sizes: no size data in these logs")
+        else:
+            print(f"\nResponse sizes: {human_bytes(sizes['total_bytes'])} across "
+                  f"{sizes['count']} requests (mean {human_bytes(sizes['mean_bytes'])}, "
+                  f"largest {human_bytes(sizes['max_bytes'])})")
+            print(f"  {'path':32s} {'bytes':>10s} {'req':>6s} {'share':>6s}")
+            for row in top_paths_by_bytes(records, args.top):
+                print(f"  {row['path']:32s} {human_bytes(row['bytes']):>10s} "
+                      f"{row['requests']:>6} {row['share']:>6.0%}")
     if args.by_hour:
         print("\nPer-hour breakdown (UTC):")
         print(f"  {'hour':>4} {'req':>6} {'err':>4} {'rate':>6} {'p95':>9}")
@@ -272,6 +289,10 @@ def _summary(records, args, comparison=None) -> dict:
         summary["path_breakdown"] = path_breakdown(records, args.top, sort=args.sort)
     if getattr(args, "by_hour", False):
         summary["hourly_breakdown"] = hourly_breakdown(records)
+    if getattr(args, "by_size", False):
+        sizes = size_summary(records)
+        summary["sizes"] = sizes
+        summary["top_paths_by_bytes"] = top_paths_by_bytes(records, args.top)
     if getattr(args, "throughput", False):
         summary["throughput"] = throughput_summary(bucket_records(records, args.bucket))
     if getattr(args, "latency_dist", False):
