@@ -85,6 +85,21 @@ class TestRenderIncidentReport(unittest.TestCase):
         self.assertIn("| `/b` | 1 | 1 | 100% | 900 ms |", out)
         self.assertIn("| `/a` | 2 | 0 | 0% | 10 ms |", out)
 
+    def test_user_agents_section(self):
+        records = [
+            rec("2026-10-31T22:00:01Z", "/a", 500, ip="10.0.0.1"),
+            rec("2026-10-31T22:00:02Z", "/b", 503, ip="10.0.0.2"),
+        ]
+        records[0] = LogRecord(timestamp=records[0].timestamp, method="GET", path="/a",
+                               status=500, source_ip="10.0.0.1", user_agent="Go-http-client/1.1")
+        out = render_incident_report(records)
+        self.assertIn("## User agents behind 5xxs", out)
+        self.assertIn("`Go-http-client/1.1` - 1 error", out)
+
+    def test_user_agents_section_omitted_without_agents(self):
+        out = render_incident_report(self.records)
+        self.assertNotIn("## User agents behind 5xxs", out)
+
     def test_comparison_section_included(self):
         records = [
             rec("2026-10-31T21:59:00Z", "/a", 200),
