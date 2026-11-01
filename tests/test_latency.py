@@ -1,7 +1,7 @@
 import unittest
 
 from loglens.parse import LogRecord, parse_json_line
-from loglens.stats import latency_summary, slowest_requests
+from loglens.stats import latency_histogram, latency_summary, slowest_requests
 
 
 def rec(duration, path="/a", status=200):
@@ -48,6 +48,35 @@ class TestSlowestRequests(unittest.TestCase):
 
     def test_skips_missing_durations(self):
         self.assertEqual(slowest_requests([rec(None)]), [])
+
+
+class TestLatencyHistogram(unittest.TestCase):
+    def test_bucket_assignment(self):
+        rows = latency_histogram([
+            rec(10.0), rec(50.0), rec(75.0), rec(400.0), rec(2500.0),
+        ])
+        counts = {row["bucket"]: row["count"] for row in rows}
+        self.assertEqual(counts["<=50ms"], 2)
+        self.assertEqual(counts["<=100ms"], 1)
+        self.assertEqual(counts["<=250ms"], 0)
+        self.assertEqual(counts["<=500ms"], 1)
+        self.assertEqual(counts["<=1000ms"], 0)
+        self.assertEqual(counts[">1000ms"], 1)
+
+    def test_boundary_values_land_in_their_bucket(self):
+        rows = latency_histogram([rec(50.0), rec(50.01)])
+        counts = {row["bucket"]: row["count"] for row in rows}
+        self.assertEqual(counts["<=50ms"], 1)
+        self.assertEqual(counts["<=100ms"], 1)
+
+    def test_untimed_skipped_buckets_always_present(self):
+        rows = latency_histogram([rec(None)])
+        self.assertEqual(len(rows), 6)
+        self.assertTrue(all(row["count"] == 0 for row in rows))
+
+    def test_empty(self):
+        rows = latency_histogram([])
+        self.assertEqual(len(rows), 6)
 
 
 if __name__ == "__main__":
