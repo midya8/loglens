@@ -26,6 +26,7 @@ python -m loglens examples/access.log --timeline --bucket 60
 python -m loglens examples/json.log --format json --latency
 python -m loglens examples/access.log --since 2026-10-30 --until 2026-10-31
 python -m loglens examples/access.log --status 5xx            # errors only
+python -m loglens app.log --status 5xx --path-prefix /api     # API errors only
 python -m loglens app.log --max-error-rate 0.05               # exit 1 above 5% 5xxs
 python -m loglens app.log --format json --json   # machine-readable summary for tooling
 python -m loglens app.log --split-at 2026-10-31T22:00:00Z   # before/after comparison
@@ -62,8 +63,9 @@ print("ips behind 5xx:", top_error_ips(records))
 - **Time windows.** `--since`/`--until` scope every statistic to an incident
   window; bounds accept ISO timestamps, combined-format timestamps, or a
   bare date (midnight UTC), and compare by instant across formats.
-  `--status 5xx,404` scopes everything to exact codes and/or Nxx classes -
-  "show me only the errors" in one flag.
+  `--status 5xx,404` scopes everything to exact codes and/or Nxx classes,
+  and `--path-prefix /api,/health` scopes to a service's surface - "show me
+  only the API errors" is `--status 5xx --path-prefix /api`.
 - **Pipeline gate.** `--max-error-rate 0.05` exits 1 when the 5xx rate
   breaches the threshold - drop loglens into CI or a cron health check
   against a fresh log slice. Works in text, JSON and report modes.

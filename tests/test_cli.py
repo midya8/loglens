@@ -121,6 +121,20 @@ class TestJsonOutput(unittest.TestCase):
         _, out = run(["--format", "json", "--json"])
         self.assertNotIn("top_user_agents", json.loads(out))
 
+    def test_path_prefix_scopes_summary(self):
+        _, out = run(["--format", "json", "--path-prefix", "/a", "--json"])
+        data = json.loads(out)
+        self.assertEqual(data["parsed_records"], 2)
+        self.assertEqual({r["path"] for r in data["top_paths"]}, {"/a"})
+
+    def test_path_prefix_invalid_exits_2(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(LOG)
+            with self.assertRaises(SystemExit) as ctx:
+                main(["--path-prefix", ",", str(path)])
+        self.assertEqual(ctx.exception.code, 2)
+
     def test_max_error_rate_gate(self):
         # LOG is 1 error in 3 records (33%); gate at 25% fails, 50% passes
         code, out = run(["--max-error-rate", "0.25"])
