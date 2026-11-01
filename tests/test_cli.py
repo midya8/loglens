@@ -174,6 +174,39 @@ class TestJsonOutput(unittest.TestCase):
         _, out = run(["--format", "json", "--json"])
         self.assertNotIn("top_methods", json.loads(out))
 
+    def test_by_ip_text_and_json(self):
+        log = (
+            '{"time":"2026-10-31T22:00:01Z","method":"GET","path":"/a","status":200,"ip":"10.0.0.1"}\n'
+            '{"time":"2026-10-31T22:00:02Z","method":"GET","path":"/b","status":500,"ip":"10.0.0.9"}\n'
+            '{"time":"2026-10-31T22:00:03Z","method":"GET","path":"/c","status":500,"ip":"10.0.0.9"}\n'
+        )
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(log)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = main(["--by-ip", str(path)])
+            self.assertEqual(code, 0)
+            out = buf.getvalue()
+        self.assertIn("Per-IP breakdown", out)
+        self.assertIn("10.0.0.9", out)
+        # worst (2 errors) leads
+        self.assertLess(out.index("10.0.0.9"), out.index("10.0.0.1"))
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(log)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = main(["--by-ip", "--json", str(path)])
+            self.assertEqual(code, 0)
+            data = json.loads(buf.getvalue())
+        self.assertEqual(data["ip_breakdown"][0]["ip"], "10.0.0.9")
+        self.assertEqual(data["ip_breakdown"][0]["errors"], 2)
+
+    def test_by_ip_omitted_from_json_without_flag(self):
+        _, out = run(["--format", "json", "--json"])
+        self.assertNotIn("ip_breakdown", json.loads(out))
+
     def test_by_path_sort_p95_json(self):
         _, out = run(["--format", "json", "--by-path", "--sort", "p95", "--json"])
         rows = json.loads(out)["path_breakdown"]
