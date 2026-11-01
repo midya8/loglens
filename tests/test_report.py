@@ -63,10 +63,12 @@ class TestRenderIncidentReport(unittest.TestCase):
             rec("2026-10-31T22:09:03Z", "/a", 200),
         ]
         out = render_incident_report(records)
-        self.assertIn("## Incident window", out)
-        self.assertIn("**First spike:** 2026-10-31T22:01:00+00:00", out)
-        self.assertIn("**Last spike:** 2026-10-31T22:09:00+00:00", out)
-        self.assertIn("- **Peak:** 2026-10-31T22:01:00+00:00 - 2 errors in 3 requests", out)
+        self.assertIn("## Spike windows", out)
+        self.assertIn("- 2026-10-31T22:01:00+00:00 - 2026-10-31T22:02:00+00:00: "
+                      "2 errors in 3 requests (67%)", out)
+        self.assertIn("- 2026-10-31T22:09:00+00:00 - 2026-10-31T22:10:00+00:00: "
+                      "2 errors in 3 requests (67%)", out)
+        self.assertIn("- **Peak bucket:** 2026-10-31T22:01:00+00:00 - 2 errors in 3 requests", out)
         self.assertNotIn("## Peak", out)
 
     def test_incident_window_omitted_without_spikes(self):

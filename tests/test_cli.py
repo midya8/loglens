@@ -379,5 +379,41 @@ class TestSpikesCLI(unittest.TestCase):
         assert "Spike windows: none" in out
 
 
+class TestThroughputCLI(unittest.TestCase):
+    def test_text(self):
+        code, out = run(["--throughput"])
+        assert code == 0
+        assert "Throughput (60s buckets):" in out
+        assert "mean 1.5 req/bucket over 2 buckets (3 requests)" in out
+        assert "peak 2 req at" in out
+
+    def test_json(self):
+        code, out = run(["--json", "--throughput"])
+        assert code == 0
+        tp = json.loads(out)["throughput"]
+        assert tp["total_requests"] == 3
+        assert tp["peak_requests"] == 2
+
+
+class TestLatencyDistCLI(unittest.TestCase):
+    def test_text(self):
+        code, out = run(["--latency-dist"])
+        assert code == 0
+        assert "Latency distribution (timed requests):" in out
+        assert "   <=50ms     1" in out
+        assert "<=1000ms     1" in out
+        assert " >1000ms     0" in out
+
+    def test_json(self):
+        code, out = run(["--json", "--latency-dist"])
+        assert code == 0
+        dist = json.loads(out)["latency_distribution"]
+        counts = {row["bucket"]: row["count"] for row in dist}
+        assert counts["<=50ms"] == 1
+        assert counts["<=1000ms"] == 1
+        assert counts[">1000ms"] == 0
+        assert counts["<=250ms"] == 0
+
+
 if __name__ == "__main__":
     unittest.main()
