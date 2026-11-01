@@ -25,6 +25,7 @@ class LogRecord:
     path: str
     status: int
     source_ip: str = ""
+    duration_ms: float | None = None
 
 
 def parse_combined(line: str) -> LogRecord | None:
@@ -46,7 +47,9 @@ def parse_json_line(line: str) -> LogRecord | None:
 
     Expects keys named like ``time``/``timestamp``, ``method``, ``path``
     and ``status``; returns None when any are missing or the line is not
-    valid JSON.
+    valid JSON. A numeric ``duration_ms`` key is used as-is; a numeric
+    ``request_time`` key (nginx-style seconds) is converted to
+    milliseconds. Both are optional.
     """
     try:
         data = json.loads(line)
@@ -58,11 +61,17 @@ def parse_json_line(line: str) -> LogRecord | None:
     method, path, status = data.get("method"), data.get("path"), data.get("status")
     if not (timestamp and method and path) or not isinstance(status, int):
         return None
+    duration_ms = data.get("duration_ms")
+    if duration_ms is None and isinstance(data.get("request_time"), (int, float)):
+        duration_ms = float(data["request_time"]) * 1000.0
+    if duration_ms is not None and not isinstance(duration_ms, (int, float)):
+        duration_ms = None
     return LogRecord(
         timestamp=str(timestamp),
         method=str(method),
         path=str(path),
         status=status,
+        duration_ms=None if duration_ms is None else float(duration_ms),
         source_ip=str(data.get("ip", "")),
     )
 
