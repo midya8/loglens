@@ -1,7 +1,14 @@
 import unittest
 
 from loglens.parse import LogRecord
-from loglens.stats import error_rate, percentile, status_distribution, top_error_ips, top_paths
+from loglens.stats import (
+    error_rate,
+    path_breakdown,
+    percentile,
+    status_distribution,
+    top_error_ips,
+    top_paths,
+)
 
 
 def rec(path, status, ip="10.0.0.1"):
@@ -37,6 +44,36 @@ class TestStats(unittest.TestCase):
             percentile([], 50)
         with self.assertRaises(ValueError):
             percentile([1], 0)
+
+
+class TestPathBreakdown(unittest.TestCase):
+    def rec(self, path, status, duration=None):
+        return LogRecord(timestamp="t", method="GET", path=path, status=status,
+                         duration_ms=duration)
+
+    def test_sorted_worst_first(self):
+        records = [
+            self.rec("/ok", 200, 5.0), self.rec("/ok", 200, 6.0),
+            self.rec("/bad", 500, 900.0), self.rec("/bad", 200, 10.0),
+        ]
+        rows = path_breakdown(records)
+        self.assertEqual(rows[0]["path"], "/bad")
+        self.assertEqual(rows[0]["error_rate"], 0.5)
+        self.assertEqual(rows[0]["p95_ms"], 900.0)
+        self.assertEqual(rows[1]["path"], "/ok")
+
+    def test_p95_none_without_durations(self):
+        rows = path_breakdown([self.rec("/a", 200)])
+        self.assertIsNone(rows[0]["p95_ms"])
+
+    def test_limit_applied(self):
+        records = [self.rec(f"/p{i}", 200) for i in range(5)]
+        self.assertEqual(len(path_breakdown(records, 2)), 2)
+
+    def test_tiebreak_by_volume_then_name(self):
+        records = [self.rec("/b", 200), self.rec("/a", 200), self.rec("/a", 200)]
+        rows = path_breakdown(records)
+        self.assertEqual([r["path"] for r in rows], ["/a", "/b"])
 
 
 if __name__ == "__main__":

@@ -27,6 +27,7 @@ python -m loglens examples/access.log --since 2026-10-30 --until 2026-10-31
 python -m loglens app.log --format json --json   # machine-readable summary for tooling
 python -m loglens app.log --split-at 2026-10-31T22:00:00Z   # before/after comparison
 python -m loglens app.log --report "Checkout 5xx spike"     # Markdown incident report
+python -m loglens app.log --by-path                          # per-path volume/errors/p95
 ```
 
 Library:
@@ -64,6 +65,8 @@ print("ips behind 5xx:", top_error_ips(records))
 - **Incident reports.** `--report "Title"` renders the findings as a
   Markdown document - window, rates, failing paths, source IPs, latency,
   and the error peak - ready to paste into an incident doc or ticket.
+- **Per-path breakdown.** `--by-path` ranks endpoints by error count with
+  volume, error rate and p95 latency, so the path causing the pain leads.
 - **Graceful degradation.** Unparseable lines are skipped, not fatal - real
   log files are mixed and partially corrupt.
 - **Two formats, one record.** Combined-format and JSON parsers both emit the

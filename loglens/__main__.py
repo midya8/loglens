@@ -12,6 +12,7 @@ from .report import render_incident_report
 from .stats import (
     error_rate,
     latency_summary,
+    path_breakdown,
     slowest_requests,
     status_distribution,
     top_error_ips,
@@ -34,6 +35,8 @@ def main(argv=None) -> int:
     parser.add_argument("--split-at", help="compare stats before/after this timestamp")
     parser.add_argument("--report", metavar="TITLE", nargs="?", const="Log analysis",
                         help="emit a Markdown incident report instead of the text summary")
+    parser.add_argument("--by-path", action="store_true",
+                        help="per-path breakdown: volume, error rate, p95 latency, worst first")
     args = parser.parse_args(argv)
 
     import sys
@@ -73,6 +76,13 @@ def main(argv=None) -> int:
     if comparison is not None:
         print()
         print(format_comparison(comparison))
+    if args.by_path:
+        print(f"\nPer-path breakdown (top {args.top}):")
+        print(f"  {'path':40s} {'req':>6} {'err':>4} {'rate':>6} {'p95':>9}")
+        for row in path_breakdown(records, args.top):
+            p95 = f"{row['p95_ms']:.0f} ms" if row['p95_ms'] is not None else "-"
+            print(f"  {row['path']:40s} {row['requests']:>6} {row['errors']:>4} "
+                  f"{row['error_rate']:>6.0%} {p95:>9}")
     if args.latency:
         summary = latency_summary(records)
         if summary is None:
@@ -118,6 +128,8 @@ def _summary(records, args, comparison=None) -> dict:
              "errors": b.errors, "error_rate": b.error_rate}
             for b in bucket_records(records, args.bucket)
         ]
+    if getattr(args, "by_path", False):
+        summary["path_breakdown"] = path_breakdown(records, args.top)
     if comparison is not None:
         summary["comparison"] = {
             "split_at": comparison.split_at.isoformat(),
