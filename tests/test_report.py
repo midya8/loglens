@@ -1,7 +1,9 @@
 import unittest
 
+from loglens.compare import compare_windows
 from loglens.parse import LogRecord
 from loglens.report import render_incident_report
+from loglens.timeline import parse_timestamp
 
 
 def rec(ts, path, status, duration=None, ip="10.0.0.1"):
@@ -82,6 +84,34 @@ class TestRenderIncidentReport(unittest.TestCase):
         self.assertIn("## Per-path breakdown", out)
         self.assertIn("| `/b` | 1 | 1 | 100% | 900 ms |", out)
         self.assertIn("| `/a` | 2 | 0 | 0% | 10 ms |", out)
+
+    def test_comparison_section_included(self):
+        records = [
+            rec("2026-10-31T21:59:00Z", "/a", 200),
+            rec("2026-10-31T22:01:00Z", "/b", 500),
+            rec("2026-10-31T22:01:30Z", "/c", 502),
+            rec("2026-10-31T22:02:00Z", "/a", 200),
+        ]
+        comparison = compare_windows(records, parse_timestamp("2026-10-31T22:00:00Z"))
+        out = render_incident_report(records, comparison=comparison)
+        self.assertIn("## Before/after 2026-10-31T22:00:00+00:00", out)
+        self.assertIn("- **Requests:** 1 before, 3 after", out)
+        self.assertIn("- **Error rate:** 0.0% before, 66.7% after (+66.7%)", out)
+        self.assertIn("- **New failing paths:** `/b`, `/c`", out)
+        self.assertNotIn("Recovered paths", out)
+
+    def test_comparison_section_omitted_by_default(self):
+        out = render_incident_report(self.records)
+        self.assertNotIn("## Before/after", out)
+
+    def test_comparison_no_change_note(self):
+        records = [
+            rec("2026-10-31T21:59:00Z", "/a", 500),
+            rec("2026-10-31T22:01:00Z", "/a", 500),
+        ]
+        comparison = compare_windows(records, parse_timestamp("2026-10-31T22:00:00Z"))
+        out = render_incident_report(records, comparison=comparison)
+        self.assertIn("- **Error paths:** no change", out)
 
     def test_no_sections_without_errors(self):
         records = [rec("2026-10-31T22:00:01Z", "/a", 200, 5.0)]

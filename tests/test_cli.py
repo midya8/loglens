@@ -54,6 +54,17 @@ class TestJsonOutput(unittest.TestCase):
         self.assertEqual(data["timeline"][0]["requests"], 2)
         self.assertEqual(data["timeline"][0]["errors"], 1)
 
+    def test_report_with_split_at_includes_comparison(self):
+        _, out = run(["--format", "json", "--report", "T", "--split-at", "2026-10-31T22:02:00Z"])
+        self.assertTrue(out.startswith("# T"))
+        self.assertIn("## Before/after 2026-10-31T22:02:00+00:00", out)
+        self.assertIn("50.0% before, 0.0% after (-50.0%)", out)
+        self.assertIn("- **Recovered paths:** `/b`", out)
+
+    def test_report_without_split_at_has_no_comparison(self):
+        _, out = run(["--format", "json", "--report", "T"])
+        self.assertNotIn("## Before/after", out)
+
     def test_text_mode_unchanged(self):
         _, out = run(["--format", "json"])
         self.assertTrue(out.startswith("Parsed records: 3"))
