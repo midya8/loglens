@@ -121,6 +121,22 @@ class TestJsonOutput(unittest.TestCase):
         _, out = run(["--format", "json", "--json"])
         self.assertNotIn("top_user_agents", json.loads(out))
 
+    def test_referers_text_and_json(self):
+        log = LOG + '{"time":"2026-10-31T22:06:00Z","method":"GET","path":"/c","status":503,"referer":"https://shop.example/cart"}\n'
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(log)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                main(["--format", "json", "--referers", "--json", str(path)])
+            data = json.loads(buf.getvalue())
+        self.assertEqual(data["top_referers"], [{"referer": "https://shop.example/cart", "count": 1}])
+        self.assertEqual(data["top_error_referers"], [{"referer": "https://shop.example/cart", "count": 1}])
+
+    def test_referers_omitted_from_json_without_flag(self):
+        _, out = run(["--format", "json", "--json"])
+        self.assertNotIn("top_referers", json.loads(out))
+
     def test_report_without_split_at_has_no_comparison(self):
         _, out = run(["--format", "json", "--report", "T"])
         self.assertNotIn("## Before/after", out)
