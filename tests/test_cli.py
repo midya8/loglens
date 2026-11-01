@@ -121,6 +121,14 @@ class TestJsonOutput(unittest.TestCase):
         _, out = run(["--format", "json", "--json"])
         self.assertNotIn("top_user_agents", json.loads(out))
 
+    def test_status_classes_in_text_and_json(self):
+        _, out = run([])
+        self.assertIn("Status classes:", out)
+        _, out = run(["--format", "json", "--json"])
+        data = json.loads(out)
+        self.assertEqual(data["status_classes"],
+                         {"2xx": 2, "3xx": 0, "4xx": 0, "5xx": 1, "other": 0})
+
     def test_referers_text_and_json(self):
         log = LOG + '{"time":"2026-10-31T22:06:00Z","method":"GET","path":"/c","status":503,"referer":"https://shop.example/cart"}\n'
         with TemporaryDirectory() as tmp:

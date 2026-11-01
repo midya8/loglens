@@ -1,7 +1,7 @@
 import unittest
 
 from loglens.parse import LogRecord
-from loglens.stats import top_referers, top_user_agents
+from loglens.stats import status_classes, top_referers, top_user_agents
 from loglens.stats import (
     error_rate,
     path_breakdown,
@@ -75,6 +75,25 @@ class TestPathBreakdown(unittest.TestCase):
         records = [self.rec("/b", 200), self.rec("/a", 200), self.rec("/a", 200)]
         rows = path_breakdown(records)
         self.assertEqual([r["path"] for r in rows], ["/a", "/b"])
+
+
+class TestStatusClasses(unittest.TestCase):
+    def rec(self, status):
+        return LogRecord(timestamp="t", method="GET", path="/x", status=status)
+
+    def test_rolls_up_by_class(self):
+        records = [self.rec(200), self.rec(204), self.rec(301), self.rec(404),
+                   self.rec(500), self.rec(503)]
+        self.assertEqual(status_classes(records),
+                         {"2xx": 2, "3xx": 1, "4xx": 1, "5xx": 2, "other": 0})
+
+    def test_out_of_range_statuses_count_as_other(self):
+        records = [self.rec(100), self.rec(999)]
+        self.assertEqual(status_classes(records)["other"], 2)
+
+    def test_empty_input_returns_zeroed_classes(self):
+        self.assertEqual(status_classes([]),
+                         {"2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0, "other": 0})
 
 
 class TestTopReferers(unittest.TestCase):

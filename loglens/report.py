@@ -14,6 +14,7 @@ from .stats import (
     latency_summary,
     path_breakdown,
     slowest_requests,
+    status_classes,
     status_distribution,
     top_error_ips,
     top_paths,
@@ -55,6 +56,11 @@ def render_incident_report(
         f"{status}x{count}" for status, count in sorted(status_distribution(records).items())
     )
     lines.append(f"- **Status distribution:** {distribution}")
+    classes = status_classes(records)
+    lines.append(
+        "- **Status classes:** "
+        + ", ".join(f"{klass} x{count}" for klass, count in classes.items() if count)
+    )
     lines.append("")
 
     if comparison is not None:
