@@ -35,6 +35,7 @@ python -m loglens app.log --split-at 2026-10-31T22:00:00Z   # before/after compa
 python -m loglens app.log --vs examples/access-baseline.log   # vs a baseline log
 python -m loglens app.log --report "Checkout 5xx spike"     # Markdown incident report
 python -m loglens app.log --by-path                          # per-path volume/errors/p95
+python -m loglens app.log --path-status                     # failing paths x their status codes
 python -m loglens app.log --by-ip                            # per-client volume/errors/p95
 python -m loglens app.log --by-hour                          # hour-of-day pattern (UTC)
 python -m loglens app.log --by-size                          # bandwidth: total bytes, heaviest paths
@@ -109,6 +110,11 @@ print("ips behind 5xx:", top_error_ips(records))
   400ms reads differently when the mass sits at 250-500ms versus a long
   tail past 1s.
   Ready to paste into an incident doc or ticket.
+- **Failing-path status pivot.** `--path-status` answers "are the
+  /api/checkout 5xxs actually 502s from the upstream?": the failing
+  endpoints (4xx+5xx) ranked worst-first, each with its per-status-code
+  counts and total volume. Compose it with `--status 5xx` to pivot on
+  server errors only. Also in `--json` as `path_status` rows.
 - **Per-path and per-client breakdowns.** `--by-path` ranks endpoints by
   error count - or by volume or p95 latency with `--sort requests|p95` -
   with volume, error rate and p95 latency, so the path causing the pain
@@ -156,7 +162,7 @@ print("ips behind 5xx:", top_error_ips(records))
 python -m unittest discover -s tests -v
 ```
 
-231 tests cover parsing (both formats, mixed files, corrupt lines),
+241 tests cover parsing (both formats, mixed files, corrupt lines),
 statistics, timeline bucketing and spike windows, latency and Apdex
 scoring, filters, before/after and baseline comparisons, report rendering,
 and every CLI flag including the exit-code gates.
