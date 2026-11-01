@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 
 from .parse import LogRecord
+from .timeline import parse_timestamp
 
 
 def status_distribution(records: list[LogRecord]) -> dict[int, int]:
@@ -191,3 +192,34 @@ def path_breakdown(records: list[LogRecord], limit: int = 10, sort: str = "error
     else:
         rows.sort(key=lambda row: (-row["errors"], -row["requests"], row["path"]))
     return rows[:limit]
+
+
+def hourly_breakdown(records: list[LogRecord]) -> list[dict]:
+    """Per-hour-of-day volume, error rate and latency (UTC).
+
+    Complements the chronological timeline: every request is bucketed
+    into its UTC hour of day (0-23), so a daily pattern - the nightly
+    batch job, the lunch peak - stands out even in a multi-day log.
+    Records with unparseable timestamps are skipped, the same convention
+    as the timeline. Rows cover only hours present in the data, sorted
+    by hour.
+    """
+    by_hour: dict[int, list[LogRecord]] = {}
+    for record in records:
+        ts = parse_timestamp(record.timestamp)
+        if ts is None:
+            continue
+        by_hour.setdefault(ts.hour, []).append(record)
+    rows = []
+    for hour in sorted(by_hour):
+        group = by_hour[hour]
+        errors = sum(1 for r in group if r.status >= 500)
+        durations = [r.duration_ms for r in group if r.duration_ms is not None]
+        rows.append({
+            "hour": hour,
+            "requests": len(group),
+            "errors": errors,
+            "error_rate": errors / len(group),
+            "p95_ms": percentile(durations, 95) if durations else None,
+        })
+    return rows
