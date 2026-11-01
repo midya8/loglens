@@ -18,6 +18,7 @@ _FORMATS = (
     "%Y-%m-%d %H:%M:%S%z",
     "%Y-%m-%dT%H:%M:%S",     # ISO 8601, assumed UTC
     "%Y-%m-%d %H:%M:%S",
+    "%Y-%m-%d",              # date only, midnight UTC
 )
 
 
