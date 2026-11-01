@@ -21,6 +21,7 @@ CLI:
 ```bash
 python -m loglens examples/access.log
 python -m loglens - --format json < app.log
+python -m loglens examples/access.log --timeline --bucket 60
 ```
 
 Library:
@@ -37,6 +38,8 @@ print("ips behind 5xx:", top_error_ips(records))
 
 ## Design notes
 
+- **Incident timeline.** `--timeline` buckets requests and 5xxs per minute
+  (or any bucket size) so you can see exactly when an incident started.
 - **Graceful degradation.** Unparseable lines are skipped, not fatal - real
   log files are mixed and partially corrupt.
 - **Two formats, one record.** Combined-format and JSON parsers both emit the
@@ -56,6 +59,7 @@ python -m unittest discover -s tests -v
 loglens/
   parse.py     # combined-format and JSON parsers -> LogRecord
   stats.py     # error rate, distributions, top-N, percentile
+  timeline.py  # per-bucket request/error timeline
   __main__.py  # CLI summary
 tests/         # unittest suite, no external dependencies
 examples/      # sample access log
