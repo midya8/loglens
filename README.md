@@ -35,6 +35,8 @@ python -m loglens app.log --by-path                          # per-path volume/e
 python -m loglens app.log --by-ip                            # per-client volume/errors/p95
 python -m loglens app.log --by-hour                          # hour-of-day pattern (UTC)
 python -m loglens app.log --spikes                           # flare-up windows from spike buckets
+python -m loglens app.log --throughput                       # mean/peak per-bucket throughput
+python -m loglens app.log --latency-dist                     # latency shape over fixed ms buckets
 python -m loglens app.log --errors                           # list the 5xx requests themselves
 python -m loglens app.log --methods                          # top HTTP methods, incl. behind 5xxs
 python -m loglens app.log --agents                           # top user agents, incl. behind 5xxs
@@ -86,7 +88,12 @@ print("ips behind 5xx:", top_error_ips(records))
   `--split-at` it also opens a before/after comparison across the deploy.
   Outside the report, `--spikes` groups consecutive spike buckets into
   flare-up windows (start, end, requests, errors, rate) in the text and
-  JSON output.
+  JSON output, and the report's incident window section lists those same
+  windows with a peak-bucket line. `--throughput` summarizes the
+  timeline into mean and peak per-bucket throughput, and `--latency-dist`
+  shows the latency shape over fixed millisecond buckets - a p95 of
+  400ms reads differently when the mass sits at 250-500ms versus a long
+  tail past 1s.
   Ready to paste into an incident doc or ticket.
 - **Per-path and per-client breakdowns.** `--by-path` ranks endpoints by
   error count - or by volume or p95 latency with `--sort requests|p95` -
