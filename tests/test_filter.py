@@ -1,7 +1,8 @@
 import unittest
 from datetime import datetime, timezone
 
-from loglens.filter import filter_by_status, filter_records, parse_bound, parse_status_spec
+from loglens.filter import (filter_by_path_prefix, filter_by_status, filter_records,
+                            parse_bound, parse_prefix_spec, parse_status_spec)
 from loglens.parse import LogRecord
 
 
@@ -89,6 +90,30 @@ class TestFilterByStatus(unittest.TestCase):
     def test_no_match_returns_empty(self):
         kept = filter_by_status([self.rec(200)], *parse_status_spec("5xx"))
         self.assertEqual(kept, [])
+
+
+class TestParsePrefixSpec(unittest.TestCase):
+    def test_single_and_multiple(self):
+        self.assertEqual(parse_prefix_spec("/api"), ("/api",))
+        self.assertEqual(parse_prefix_spec("/api, /health"), ("/api", "/health"))
+
+    def test_empty_segments_rejected(self):
+        for bad in ("", ",", "/api,", ",/api"):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                parse_prefix_spec(bad)
+
+
+class TestFilterByPathPrefix(unittest.TestCase):
+    def rec(self, path):
+        return LogRecord(timestamp="t", method="GET", path=path, status=200)
+
+    def test_keeps_matching_prefixes(self):
+        records = [self.rec("/api/a"), self.rec("/health"), self.rec("/web")]
+        kept = filter_by_path_prefix(records, ("/api", "/health"))
+        self.assertEqual([r.path for r in kept], ["/api/a", "/health"])
+
+    def test_no_match_returns_empty(self):
+        self.assertEqual(filter_by_path_prefix([self.rec("/web")], ("/api",)), [])
 
 
 class TestParseBound(unittest.TestCase):
