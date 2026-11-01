@@ -600,3 +600,55 @@ class TestApdexCLI(unittest.TestCase):
         code, out = self.run_apdex(["--report", "T", "--apdex", "0.5"])
         self.assertIn("## Apdex (T=0.5s)", out)
         self.assertIn("| `/slow` | 0.000 | 1 |", out)
+
+
+PATH_STATUS_LOG = """\
+10.0.0.1 - - [30/Oct/2026:14:05:01 +0000] "GET /api/checkout HTTP/1.1" 500 100
+10.0.0.1 - - [30/Oct/2026:14:05:02 +0000] "GET /api/checkout HTTP/1.1" 503 100
+10.0.0.1 - - [30/Oct/2026:14:05:03 +0000] "GET /api/checkout HTTP/1.1" 503 100
+10.0.0.2 - - [30/Oct/2026:14:05:04 +0000] "GET /old-page HTTP/1.1" 404 100
+10.0.0.2 - - [30/Oct/2026:14:05:05 +0000] "GET /api/health HTTP/1.1" 200 100
+"""
+
+
+class TestPathStatusCLI(unittest.TestCase):
+    def run_ps(self, argv, log=PATH_STATUS_LOG):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(log)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = main(argv + [str(path)])
+            return code, buf.getvalue()
+
+    def test_text_pivot(self):
+        code, out = self.run_ps(["--path-status"])
+        self.assertEqual(code, 0)
+        self.assertIn("Failing paths by status code", out)
+        self.assertIn("/api/checkout", out)
+        self.assertIn("500: 1, 503: 2", out)
+        self.assertIn("404: 1", out)
+        self.assertNotIn("/api/health                         0", out)
+
+    def test_no_flag_no_section(self):
+        code, out = self.run_ps([])
+        self.assertNotIn("Failing paths by status", out)
+
+    def test_status_filter_composes(self):
+        code, out = self.run_ps(["--status", "5xx", "--path-status"])
+        self.assertIn("/api/checkout", out)
+        self.assertNotIn("/old-page", out)
+
+    def test_json_block(self):
+        code, out = self.run_ps(["--path-status", "--json"])
+        data = json.loads(out)
+        rows = data["path_status"]
+        self.assertEqual(rows[0]["path"], "/api/checkout")
+        self.assertEqual(rows[0]["statuses"], {"500": 1, "503": 2})
+        self.assertEqual(rows[0]["failing"], 3)
+
+    def test_clean_log_says_none(self):
+        code, out = self.run_ps(["--path-status"],
+                                log='10.0.0.1 - - [30/Oct/2026:14:05:01 +0000] '
+                                    '"GET /ok HTTP/1.1" 200 10\n')
+        self.assertIn("Failing paths by status: none", out)
