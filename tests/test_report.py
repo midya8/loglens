@@ -50,6 +50,29 @@ class TestRenderIncidentReport(unittest.TestCase):
         self.assertIn("## Peak", out)
         self.assertIn("1 error in 2 requests", out)
 
+    def test_incident_window_with_spikes(self):
+        records = [
+            rec("2026-10-31T22:00:01Z", "/a", 200),
+            rec("2026-10-31T22:01:01Z", "/b", 500),
+            rec("2026-10-31T22:01:02Z", "/b", 500),
+            rec("2026-10-31T22:01:03Z", "/a", 200),
+            rec("2026-10-31T22:09:01Z", "/b", 500),
+            rec("2026-10-31T22:09:02Z", "/b", 502),
+            rec("2026-10-31T22:09:03Z", "/a", 200),
+        ]
+        out = render_incident_report(records)
+        self.assertIn("## Incident window", out)
+        self.assertIn("**First spike:** 2026-10-31T22:01:00+00:00", out)
+        self.assertIn("**Last spike:** 2026-10-31T22:09:00+00:00", out)
+        self.assertIn("- **Peak:** 2026-10-31T22:01:00+00:00 - 2 errors in 3 requests", out)
+        self.assertNotIn("## Peak", out)
+
+    def test_incident_window_omitted_without_spikes(self):
+        # one error in a bucket never reads as a spike, so Peak still shows
+        out = render_incident_report(self.records)
+        self.assertNotIn("## Incident window", out)
+        self.assertIn("## Peak", out)
+
     def test_no_peak_without_errors(self):
         records = [rec("2026-10-31T22:00:01Z", "/a", 200)]
         self.assertNotIn("## Peak", render_incident_report(records))

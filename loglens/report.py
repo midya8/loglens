@@ -17,7 +17,7 @@ from .stats import (
     top_error_ips,
     top_paths,
 )
-from .timeline import bucket_records, parse_timestamp
+from .timeline import bucket_records, is_spike, parse_timestamp
 
 
 def _plural(count: int, word: str) -> str:
@@ -96,8 +96,29 @@ def render_incident_report(
 
     if timestamps:
         buckets = bucket_records(records, bucket_seconds)
+        spikes = [b for b in buckets if is_spike(b)]
         peak = max(buckets, key=lambda b: b.errors, default=None)
-        if peak and peak.errors:
+        if spikes:
+            lines.append("## Incident window")
+            lines.append("")
+            first, last = spikes[0], spikes[-1]
+            lines.append(
+                f"- **First spike:** {first.start.isoformat()} - "
+                f"{_plural(first.errors, 'error')} in {_plural(first.requests, 'request')} "
+                f"({first.error_rate:.0%})"
+            )
+            lines.append(
+                f"- **Last spike:** {last.start.isoformat()} - "
+                f"{_plural(last.errors, 'error')} in {_plural(last.requests, 'request')} "
+                f"({last.error_rate:.0%})"
+            )
+            if peak and peak.errors:
+                lines.append(
+                    f"- **Peak:** {peak.start.isoformat()} - "
+                    f"{_plural(peak.errors, 'error')} in {_plural(peak.requests, 'request')}"
+                )
+            lines.append("")
+        elif peak and peak.errors:
             lines.append("## Peak")
             lines.append("")
             lines.append(
