@@ -1,7 +1,7 @@
 import unittest
 
 from loglens.parse import LogRecord
-from loglens.stats import top_user_agents
+from loglens.stats import top_referers, top_user_agents
 from loglens.stats import (
     error_rate,
     path_breakdown,
@@ -75,6 +75,24 @@ class TestPathBreakdown(unittest.TestCase):
         records = [self.rec("/b", 200), self.rec("/a", 200), self.rec("/a", 200)]
         rows = path_breakdown(records)
         self.assertEqual([r["path"] for r in rows], ["/a", "/b"])
+
+
+class TestTopReferers(unittest.TestCase):
+    def rec(self, status, referer):
+        return LogRecord(timestamp="t", method="GET", path="/x", status=status, referer=referer)
+
+    def test_counts_and_ranking(self):
+        records = [self.rec(200, "https://a/x"), self.rec(500, "https://a/cart"),
+                   self.rec(503, "https://a/cart"), self.rec(200, "")]
+        self.assertEqual(top_referers(records), [("https://a/cart", 2), ("https://a/x", 1)])
+
+    def test_errors_only(self):
+        records = [self.rec(200, "https://a/x"), self.rec(500, "https://a/cart")]
+        self.assertEqual(top_referers(records, errors_only=True), [("https://a/cart", 1)])
+
+    def test_empty_and_refererless(self):
+        self.assertEqual(top_referers([]), [])
+        self.assertEqual(top_referers([self.rec(500, "")]), [])
 
 
 class TestTopUserAgents(unittest.TestCase):
