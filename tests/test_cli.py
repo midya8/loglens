@@ -121,6 +121,25 @@ class TestJsonOutput(unittest.TestCase):
         _, out = run(["--format", "json", "--json"])
         self.assertNotIn("top_user_agents", json.loads(out))
 
+    def test_status_filter_scopes_summary(self):
+        _, out = run(["--format", "json", "--status", "5xx", "--json"])
+        data = json.loads(out)
+        self.assertEqual(data["parsed_records"], 1)
+        self.assertEqual(data["status_distribution"], {"500": 1})
+        self.assertEqual(data["status_classes"]["5xx"], 1)
+
+    def test_status_filter_exact_code(self):
+        _, out = run(["--format", "json", "--status", "200", "--json"])
+        self.assertEqual(json.loads(out)["parsed_records"], 2)
+
+    def test_status_filter_invalid_exits_2(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(LOG)
+            with self.assertRaises(SystemExit) as ctx:
+                main(["--status", "bogus", str(path)])
+        self.assertEqual(ctx.exception.code, 2)
+
     def test_status_classes_in_text_and_json(self):
         _, out = run([])
         self.assertIn("Status classes:", out)
