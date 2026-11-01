@@ -173,3 +173,25 @@ def spike_windows(
         )
         for r in runs
     ]
+
+
+def throughput_summary(buckets: list[Bucket]) -> dict | None:
+    """Mean and peak per-bucket throughput over a timeline.
+
+    Answers "how busy was it, and how bad did the busiest minute get?"
+    without scanning the whole table. Returns None for an empty
+    timeline; ``peak`` names the single busiest bucket by requests
+    (earliest on ties).
+    """
+    if not buckets:
+        return None
+    peak = max(buckets, key=lambda b: b.requests)
+    total_requests = sum(b.requests for b in buckets)
+    return {
+        "buckets": len(buckets),
+        "total_requests": total_requests,
+        "mean_requests_per_bucket": total_requests / len(buckets),
+        "peak_start": peak.start.isoformat(),
+        "peak_requests": peak.requests,
+        "peak_errors": peak.errors,
+    }
