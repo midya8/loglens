@@ -6,7 +6,7 @@ import argparse
 import json
 
 from .compare import compare_windows, format_comparison
-from .filter import filter_records, parse_bound
+from .filter import filter_by_status, filter_records, parse_bound, parse_status_spec
 from .parse import parse_lines
 from .report import render_incident_report
 from .stats import (
@@ -38,6 +38,8 @@ def main(argv=None) -> int:
     parser.add_argument("--since", help="only include records at/after this timestamp")
     parser.add_argument("--until", help="only include records at/before this timestamp")
     parser.add_argument("--split-at", help="compare stats before/after this timestamp")
+    parser.add_argument("--status",
+                        help="only include these statuses: exact codes and/or Nxx classes, comma-separated (e.g. 5xx,404)")
     parser.add_argument("--report", metavar="TITLE", nargs="?", const="Log analysis",
                         help="emit a Markdown incident report instead of the text summary")
     parser.add_argument("--by-path", action="store_true",
@@ -60,6 +62,12 @@ def main(argv=None) -> int:
         except ValueError as exc:
             parser.error(str(exc))
         records = filter_records(records, since=since, until=until)
+    if args.status:
+        try:
+            codes, classes = parse_status_spec(args.status)
+        except ValueError as exc:
+            parser.error(str(exc))
+        records = filter_by_status(records, codes, classes)
     if args.split_at:
         try:
             split_at = parse_bound(args.split_at)
