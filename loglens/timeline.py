@@ -115,3 +115,61 @@ def format_timeline(
             f"{bucket.errors:>3} err  {bucket.error_rate:>5.0%}  {bar}{marker}"
         )
     return "\n".join(lines)
+
+
+@dataclass(frozen=True)
+class SpikeWindow:
+    """One run of consecutive spike buckets: a single flare-up.
+
+    ``end`` is exclusive (last spike bucket start + bucket size), so
+    ``end - start`` is the window's duration.
+    """
+
+    start: datetime
+    end: datetime
+    requests: int
+    errors: int
+
+    @property
+    def error_rate(self) -> float:
+        return self.errors / self.requests if self.requests else 0.0
+
+
+def spike_windows(
+    buckets: list[Bucket],
+    bucket_seconds: int = 60,
+    min_error_rate: float = 0.25,
+    min_errors: int = 2,
+) -> list[SpikeWindow]:
+    """Group consecutive spike buckets into windows.
+
+    A single spike bucket is noise; a run of them is the incident. Two
+    spike buckets belong to the same window when their starts are exactly
+    ``bucket_seconds`` apart - a gap (empty or quiet buckets) splits
+    windows. Only the spike buckets' own counts are aggregated, so the
+    window's error rate reflects the flare-up, not the lull around it.
+    Thresholds are ``is_spike``'s.
+    """
+    if bucket_seconds <= 0:
+        raise ValueError(f"bucket_seconds must be positive, got {bucket_seconds!r}")
+    runs: list[list[Bucket]] = []
+    run: list[Bucket] = []
+    for bucket in buckets:
+        if not is_spike(bucket, min_error_rate, min_errors):
+            continue
+        if run and (bucket.start - run[-1].start).total_seconds() != bucket_seconds:
+            runs.append(run)
+            run = []
+        run.append(bucket)
+    if run:
+        runs.append(run)
+    return [
+        SpikeWindow(
+            start=r[0].start,
+            end=datetime.fromtimestamp(r[-1].start.timestamp() + bucket_seconds,
+                                       tz=timezone.utc),
+            requests=sum(b.requests for b in r),
+            errors=sum(b.errors for b in r),
+        )
+        for r in runs
+    ]
