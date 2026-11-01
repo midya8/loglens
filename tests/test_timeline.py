@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from loglens.parse import LogRecord
 from loglens.timeline import (
     Bucket, is_spike, bucket_records, format_timeline,
-    parse_timestamp, spike_windows,
+    parse_timestamp, spike_windows, throughput_summary,
 )
 
 
@@ -163,6 +163,33 @@ class TestSpikeWindows(unittest.TestCase):
     def test_invalid_bucket_seconds_rejected(self):
         with self.assertRaises(ValueError):
             spike_windows([], bucket_seconds=0)
+
+
+class TestThroughputSummary(unittest.TestCase):
+    @staticmethod
+    def bucket(minute, requests, errors=0):
+        return Bucket(
+            start=datetime(2026, 10, 31, 14, minute, tzinfo=timezone.utc),
+            requests=requests, errors=errors,
+        )
+
+    def test_mean_and_peak(self):
+        summary = throughput_summary([
+            self.bucket(5, 10), self.bucket(6, 30, 2), self.bucket(7, 20),
+        ])
+        self.assertEqual(summary["buckets"], 3)
+        self.assertEqual(summary["total_requests"], 60)
+        self.assertAlmostEqual(summary["mean_requests_per_bucket"], 20.0)
+        self.assertEqual(summary["peak_requests"], 30)
+        self.assertEqual(summary["peak_errors"], 2)
+        self.assertIn("14:06:00", summary["peak_start"])
+
+    def test_peak_tie_picks_earliest(self):
+        summary = throughput_summary([self.bucket(5, 30), self.bucket(9, 30)])
+        self.assertIn("14:05:00", summary["peak_start"])
+
+    def test_empty(self):
+        self.assertIsNone(throughput_summary([]))
 
 
 if __name__ == "__main__":
