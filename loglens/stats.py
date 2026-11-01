@@ -77,6 +77,16 @@ def top_referers(
     return Counter(r.referer for r in pool).most_common(limit)
 
 
+def top_methods(records: list[LogRecord], limit: int = 10, errors_only: bool = False) -> list[tuple[str, int]]:
+    """HTTP methods ranked by volume, optionally restricted to 5xx responses.
+
+    The write-vs-read question in an incident: a 5xx spike on POSTs is a
+    different emergency than one on GETs. Empty methods are skipped.
+    """
+    pool = (r for r in records if r.method and (not errors_only or r.status >= 500))
+    return Counter(r.method for r in pool).most_common(limit)
+
+
 def percentile(values: list[float], pct: float) -> float:
     """Nearest-rank percentile of a numeric sample.
 
