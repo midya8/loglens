@@ -26,6 +26,7 @@ python -m loglens examples/access.log --timeline --bucket 60
 python -m loglens examples/json.log --format json --latency
 python -m loglens examples/access.log --since 2026-10-30 --until 2026-10-31
 python -m loglens examples/access.log --status 5xx            # errors only
+python -m loglens app.log --max-error-rate 0.05               # exit 1 above 5% 5xxs
 python -m loglens app.log --format json --json   # machine-readable summary for tooling
 python -m loglens app.log --split-at 2026-10-31T22:00:00Z   # before/after comparison
 python -m loglens app.log --report "Checkout 5xx spike"     # Markdown incident report
@@ -63,6 +64,9 @@ print("ips behind 5xx:", top_error_ips(records))
   bare date (midnight UTC), and compare by instant across formats.
   `--status 5xx,404` scopes everything to exact codes and/or Nxx classes -
   "show me only the errors" in one flag.
+- **Pipeline gate.** `--max-error-rate 0.05` exits 1 when the 5xx rate
+  breaches the threshold - drop loglens into CI or a cron health check
+  against a fresh log slice. Works in text, JSON and report modes.
 - **Composable output.** `--json` emits the whole summary (counts, rates,
   top-N, latency, timeline) as JSON so dashboards and scripts can consume
   it without scraping text.
