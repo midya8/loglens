@@ -4,6 +4,7 @@ from loglens.parse import LogRecord
 from loglens.stats import status_classes, top_methods, top_referers, top_user_agents
 from loglens.stats import (
     error_rate,
+    ip_breakdown,
     path_breakdown,
     percentile,
     status_distribution,
@@ -91,6 +92,49 @@ class TestPathBreakdown(unittest.TestCase):
     def test_unknown_sort_rejected(self):
         with self.assertRaises(ValueError):
             path_breakdown([self.rec("/a", 200)], sort="bogus")
+
+
+class TestIpBreakdown(unittest.TestCase):
+    def rec(self, ip, status, duration=None):
+        return LogRecord(timestamp="t", method="GET", path="/a", status=status,
+                         source_ip=ip, duration_ms=duration)
+
+    def test_sorted_worst_first(self):
+        records = [
+            self.rec("10.0.0.1", 200, 5.0), self.rec("10.0.0.1", 200, 6.0),
+            self.rec("10.0.0.9", 500, 900.0), self.rec("10.0.0.9", 200, 10.0),
+        ]
+        rows = ip_breakdown(records)
+        self.assertEqual(rows[0]["ip"], "10.0.0.9")
+        self.assertEqual(rows[0]["error_rate"], 0.5)
+        self.assertEqual(rows[0]["p95_ms"], 900.0)
+        self.assertEqual(rows[1]["ip"], "10.0.0.1")
+
+    def test_skips_records_without_ip(self):
+        records = [self.rec("", 500), self.rec("10.0.0.1", 200)]
+        rows = ip_breakdown(records)
+        self.assertEqual([r["ip"] for r in rows], ["10.0.0.1"])
+
+    def test_sort_by_requests(self):
+        records = [self.rec("10.0.0.9", 500), self.rec("10.0.0.1", 200),
+                   self.rec("10.0.0.1", 200), self.rec("10.0.0.1", 200)]
+        rows = ip_breakdown(records, sort="requests")
+        self.assertEqual([r["ip"] for r in rows], ["10.0.0.1", "10.0.0.9"])
+
+    def test_sort_by_p95_untimed_last(self):
+        records = [self.rec("10.0.0.1", 200, 900.0), self.rec("10.0.0.2", 200, 10.0),
+                   self.rec("10.0.0.3", 500)]
+        rows = ip_breakdown(records, sort="p95")
+        self.assertEqual([r["ip"] for r in rows],
+                         ["10.0.0.1", "10.0.0.2", "10.0.0.3"])
+
+    def test_unknown_sort_rejected(self):
+        with self.assertRaises(ValueError):
+            ip_breakdown([self.rec("10.0.0.1", 200)], sort="bogus")
+
+    def test_limit_applied(self):
+        records = [self.rec(f"10.0.0.{i}", 200) for i in range(5)]
+        self.assertEqual(len(ip_breakdown(records, 2)), 2)
 
 
 class TestStatusClasses(unittest.TestCase):

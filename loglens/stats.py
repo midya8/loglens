@@ -124,6 +124,41 @@ def slowest_requests(records: list[LogRecord], limit: int = 5) -> list[LogRecord
     return sorted(with_duration, key=lambda r: r.duration_ms, reverse=True)[:limit]
 
 
+def ip_breakdown(records: list[LogRecord], limit: int = 10, sort: str = "errors") -> list[dict]:
+    """Per-source-IP volume, error rate and latency, worst offenders first.
+
+    The client-side mirror of ``path_breakdown``: answers "is one client
+    retry-storming us?" with the same shape and ``sort`` semantics
+    (``errors``, ``requests`` or ``p95``). Records without a source IP are
+    skipped.
+    """
+    if sort not in ("errors", "requests", "p95"):
+        raise ValueError(f"unknown sort: {sort!r} (want errors, requests or p95)")
+    by_ip: dict[str, list[LogRecord]] = {}
+    for record in records:
+        if record.source_ip:
+            by_ip.setdefault(record.source_ip, []).append(record)
+    rows = []
+    for ip, group in by_ip.items():
+        errors = sum(1 for r in group if r.status >= 500)
+        durations = [r.duration_ms for r in group if r.duration_ms is not None]
+        rows.append({
+            "ip": ip,
+            "requests": len(group),
+            "errors": errors,
+            "error_rate": errors / len(group),
+            "p95_ms": percentile(durations, 95) if durations else None,
+        })
+    if sort == "p95":
+        rows.sort(key=lambda row: (row["p95_ms"] is None,
+                                   -(row["p95_ms"] or 0), -row["requests"], row["ip"]))
+    elif sort == "requests":
+        rows.sort(key=lambda row: (-row["requests"], -row["errors"], row["ip"]))
+    else:
+        rows.sort(key=lambda row: (-row["errors"], -row["requests"], row["ip"]))
+    return rows[:limit]
+
+
 def path_breakdown(records: list[LogRecord], limit: int = 10, sort: str = "errors") -> list[dict]:
     """Per-path volume, error rate and latency, worst offenders first.
 

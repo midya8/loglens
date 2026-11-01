@@ -12,6 +12,7 @@ from .parse import parse_lines
 from .report import render_incident_report
 from .stats import (
     error_rate,
+    ip_breakdown,
     latency_summary,
     path_breakdown,
     slowest_requests,
@@ -49,7 +50,9 @@ def main(argv=None) -> int:
     parser.add_argument("--report", metavar="TITLE", nargs="?", const="Log analysis",
                         help="emit a Markdown incident report instead of the text summary")
     parser.add_argument("--sort", choices=("errors", "requests", "p95"), default="errors",
-                        help="ordering for --by-path: errors (default), requests, or p95 latency")
+                        help="ordering for --by-path/--by-ip: errors (default), requests, or p95 latency")
+    parser.add_argument("--by-ip", action="store_true",
+                        help="per-source-IP breakdown: volume, error rate, p95 latency, worst first")
     parser.add_argument("--by-path", action="store_true",
                         help="per-path breakdown: volume, error rate, p95 latency, worst first")
     parser.add_argument("--agents", action="store_true",
@@ -117,6 +120,13 @@ def main(argv=None) -> int:
     if comparison is not None:
         print()
         print(format_comparison(comparison))
+    if args.by_ip:
+        print(f"\nPer-IP breakdown (top {args.top}):")
+        print(f"  {'ip':40s} {'req':>6} {'err':>4} {'rate':>6} {'p95':>9}")
+        for row in ip_breakdown(records, args.top, sort=args.sort):
+            p95 = f"{row['p95_ms']:.0f} ms" if row['p95_ms'] is not None else "-"
+            print(f"  {row['ip']:40s} {row['requests']:>6} {row['errors']:>4} "
+                  f"{row['error_rate']:>6.0%} {p95:>9}")
     if args.by_path:
         print(f"\nPer-path breakdown (top {args.top}):")
         print(f"  {'path':40s} {'req':>6} {'err':>4} {'rate':>6} {'p95':>9}")
@@ -194,6 +204,8 @@ def _summary(records, args, comparison=None) -> dict:
              "errors": b.errors, "error_rate": b.error_rate}
             for b in bucket_records(records, args.bucket)
         ]
+    if getattr(args, "by_ip", False):
+        summary["ip_breakdown"] = ip_breakdown(records, args.top, sort=args.sort)
     if getattr(args, "by_path", False):
         summary["path_breakdown"] = path_breakdown(records, args.top, sort=args.sort)
     if getattr(args, "agents", False):
