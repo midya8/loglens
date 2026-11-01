@@ -43,3 +43,26 @@ def percentile(values: list[float], pct: float) -> float:
     ordered = sorted(values)
     rank = max(1, round(len(ordered) * pct / 100))
     return ordered[min(rank, len(ordered)) - 1]
+
+
+def latency_summary(records: list[LogRecord]) -> dict[str, float] | None:
+    """p50/p95/p99 latency in milliseconds over records that carry durations.
+
+    Returns None when no record has a duration, so callers can omit the
+    section instead of printing misleading zeros.
+    """
+    durations = [r.duration_ms for r in records if r.duration_ms is not None]
+    if not durations:
+        return None
+    return {
+        "count": float(len(durations)),
+        "p50": percentile(durations, 50),
+        "p95": percentile(durations, 95),
+        "p99": percentile(durations, 99),
+    }
+
+
+def slowest_requests(records: list[LogRecord], limit: int = 5) -> list[LogRecord]:
+    """The slowest requests with known durations, slowest first."""
+    with_duration = [r for r in records if r.duration_ms is not None]
+    return sorted(with_duration, key=lambda r: r.duration_ms, reverse=True)[:limit]

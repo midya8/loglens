@@ -5,7 +5,14 @@ from __future__ import annotations
 import argparse
 
 from .parse import parse_lines
-from .stats import error_rate, status_distribution, top_error_ips, top_paths
+from .stats import (
+    error_rate,
+    latency_summary,
+    slowest_requests,
+    status_distribution,
+    top_error_ips,
+    top_paths,
+)
 from .timeline import bucket_records, format_timeline
 
 
@@ -16,6 +23,7 @@ def main(argv=None) -> int:
     parser.add_argument("--top", type=int, default=5)
     parser.add_argument("--timeline", action="store_true", help="print per-bucket request/error counts")
     parser.add_argument("--bucket", type=int, default=60, help="timeline bucket size in seconds")
+    parser.add_argument("--latency", action="store_true", help="print latency percentiles and slowest requests (JSON logs with durations)")
     args = parser.parse_args(argv)
 
     import sys
@@ -31,6 +39,15 @@ def main(argv=None) -> int:
     if args.timeline:
         print("\nTimeline (UTC):")
         print(format_timeline(bucket_records(records, args.bucket)))
+    if args.latency:
+        summary = latency_summary(records)
+        if summary is None:
+            print("\nLatency: no durations in log (needs JSON lines with duration_ms or request_time)")
+        else:
+            print(f"\nLatency (ms): p50={summary['p50']:.1f} p95={summary['p95']:.1f} p99={summary['p99']:.1f}")
+            print(f"Slowest {args.top} requests:")
+            for r in slowest_requests(records, args.top):
+                print(f"  {r.duration_ms:8.1f} ms  {r.method} {r.path} -> {r.status}")
     return 0
 
 

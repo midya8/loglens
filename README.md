@@ -22,13 +22,14 @@ CLI:
 python -m loglens examples/access.log
 python -m loglens - --format json < app.log
 python -m loglens examples/access.log --timeline --bucket 60
+python -m loglens examples/json.log --format json --latency
 ```
 
 Library:
 
 ```python
 from loglens.parse import parse_lines
-from loglens.stats import error_rate, top_paths, top_error_ips, percentile
+from loglens.stats import error_rate, latency_summary, top_paths, top_error_ips, percentile
 
 records = parse_lines(open("examples/access.log"))
 print(f"5xx rate: {error_rate(records):.1%}")
@@ -40,6 +41,9 @@ print("ips behind 5xx:", top_error_ips(records))
 
 - **Incident timeline.** `--timeline` buckets requests and 5xxs per minute
   (or any bucket size) so you can see exactly when an incident started.
+- **Latency view.** `--latency` reports p50/p95/p99 and the slowest requests
+  from JSON logs carrying `duration_ms` or nginx-style `request_time`;
+  logs without durations simply skip the section.
 - **Graceful degradation.** Unparseable lines are skipped, not fatal - real
   log files are mixed and partially corrupt.
 - **Two formats, one record.** Combined-format and JSON parsers both emit the
@@ -58,7 +62,7 @@ python -m unittest discover -s tests -v
 ```
 loglens/
   parse.py     # combined-format and JSON parsers -> LogRecord
-  stats.py     # error rate, distributions, top-N, percentile
+  stats.py     # error rate, distributions, top-N, latency percentiles
   timeline.py  # per-bucket request/error timeline
   __main__.py  # CLI summary
 tests/         # unittest suite, no external dependencies
