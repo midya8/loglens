@@ -96,6 +96,11 @@ class TestRenderIncidentReport(unittest.TestCase):
         self.assertIn("## User agents behind 5xxs", out)
         self.assertIn("`Go-http-client/1.1` - 1 error", out)
 
+    def test_status_classes_bullet(self):
+        out = render_incident_report(self.records)
+        self.assertIn("- **Status classes:**", out)
+        self.assertIn("2xx x", out)
+
     def test_referers_section(self):
         records = [
             LogRecord(timestamp="2026-10-31T22:00:01Z", method="GET", path="/a",
