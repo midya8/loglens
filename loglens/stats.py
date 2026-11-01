@@ -66,3 +66,28 @@ def slowest_requests(records: list[LogRecord], limit: int = 5) -> list[LogRecord
     """The slowest requests with known durations, slowest first."""
     with_duration = [r for r in records if r.duration_ms is not None]
     return sorted(with_duration, key=lambda r: r.duration_ms, reverse=True)[:limit]
+
+
+def path_breakdown(records: list[LogRecord], limit: int = 10) -> list[dict]:
+    """Per-path volume, error rate and latency, worst offenders first.
+
+    Rows are sorted by error count, then total requests, so the path
+    causing the pain leads. Latency is p95 over the path's timed requests
+    (None when the path has none).
+    """
+    by_path: dict[str, list[LogRecord]] = {}
+    for record in records:
+        by_path.setdefault(record.path, []).append(record)
+    rows = []
+    for path, group in by_path.items():
+        errors = sum(1 for r in group if r.status >= 500)
+        durations = [r.duration_ms for r in group if r.duration_ms is not None]
+        rows.append({
+            "path": path,
+            "requests": len(group),
+            "errors": errors,
+            "error_rate": errors / len(group),
+            "p95_ms": percentile(durations, 95) if durations else None,
+        })
+    rows.sort(key=lambda row: (-row["errors"], -row["requests"], row["path"]))
+    return rows[:limit]
