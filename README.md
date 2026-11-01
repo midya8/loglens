@@ -74,7 +74,8 @@ print("ips behind 5xx:", top_error_ips(records))
   bucket plus the error peak); with `--split-at` it also opens a before/after
   comparison across the deploy. Ready to paste into an incident doc or
   ticket.
-- **Per-path breakdown.** `--by-path` ranks endpoints by error count with
+- **Per-path breakdown.** `--by-path` ranks endpoints by error count -
+  or by volume or p95 latency with `--sort requests|p95` - with
   volume, error rate and p95 latency, so the path causing the pain leads.
 - **User agents and referers.** `--agents` ranks user agents overall and
   behind 5xxs - the fast answer to "is this spike a bot or real users?" -
