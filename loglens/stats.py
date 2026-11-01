@@ -194,6 +194,36 @@ def path_breakdown(records: list[LogRecord], limit: int = 10, sort: str = "error
     return rows[:limit]
 
 
+def path_status_breakdown(records: list[LogRecord], limit: int = 10,
+                          threshold: int = 400) -> list[dict]:
+    """Per-path status-code counts behind the failures, worst paths first.
+
+    ``--by-path`` ranks endpoints but hides which codes are failing; this
+    pivot answers "are the /api/checkout 5xxs actually 502s from the
+    upstream?". Only paths with at least one response at or above
+    ``threshold`` appear, ranked by failing-request count (ties: total
+    volume, then path). Each row carries the failing total plus the
+    per-code counts, sorted by code.
+    """
+    by_path: dict[str, dict[int, int]] = {}
+    volumes: dict[str, int] = {}
+    for record in records:
+        volumes[record.path] = volumes.get(record.path, 0) + 1
+        if record.status >= threshold:
+            by_path.setdefault(record.path, {})[record.status] = (
+                by_path.setdefault(record.path, {}).get(record.status, 0) + 1)
+    rows = []
+    for path, codes in by_path.items():
+        rows.append({
+            "path": path,
+            "requests": volumes[path],
+            "failing": sum(codes.values()),
+            "statuses": dict(sorted(codes.items())),
+        })
+    rows.sort(key=lambda row: (-row["failing"], -row["requests"], row["path"]))
+    return rows[:limit]
+
+
 def hourly_breakdown(records: list[LogRecord]) -> list[dict]:
     """Per-hour-of-day volume, error rate and latency (UTC).
 
