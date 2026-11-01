@@ -17,6 +17,7 @@ from .stats import (
     status_distribution,
     top_error_ips,
     top_paths,
+    top_referers,
     top_user_agents,
 )
 from .timeline import bucket_records, is_spike, parse_timestamp
@@ -105,6 +106,14 @@ def render_incident_report(
         lines.append("")
         for agent, count in error_agents:
             lines.append(f"- `{agent}` - {_plural(count, 'error')}")
+        lines.append("")
+
+    error_referers = top_referers(records, top, errors_only=True)
+    if error_referers:
+        lines.append("## Referers behind 5xxs")
+        lines.append("")
+        for referer, count in error_referers:
+            lines.append(f"- `{referer}` - {_plural(count, 'error')}")
         lines.append("")
 
     breakdown = path_breakdown(records, top)
