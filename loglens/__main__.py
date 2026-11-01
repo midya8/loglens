@@ -6,7 +6,8 @@ import argparse
 import json
 
 from .compare import compare_windows, format_comparison
-from .filter import filter_by_status, filter_records, parse_bound, parse_status_spec
+from .filter import (filter_by_path_prefix, filter_by_status, filter_records,
+                     parse_bound, parse_prefix_spec, parse_status_spec)
 from .parse import parse_lines
 from .report import render_incident_report
 from .stats import (
@@ -43,6 +44,8 @@ def main(argv=None) -> int:
                         help="exit 1 when the 5xx rate exceeds FRACTION (0-1) - a pipeline health gate")
     parser.add_argument("--status",
                         help="only include these statuses: exact codes and/or Nxx classes, comma-separated (e.g. 5xx,404)")
+    parser.add_argument("--path-prefix",
+                        help="only include paths starting with these prefixes, comma-separated (e.g. /api,/health)")
     parser.add_argument("--report", metavar="TITLE", nargs="?", const="Log analysis",
                         help="emit a Markdown incident report instead of the text summary")
     parser.add_argument("--sort", choices=("errors", "requests", "p95"), default="errors",
@@ -75,6 +78,12 @@ def main(argv=None) -> int:
         except ValueError as exc:
             parser.error(str(exc))
         records = filter_by_status(records, codes, classes)
+    if args.path_prefix:
+        try:
+            prefixes = parse_prefix_spec(args.path_prefix)
+        except ValueError as exc:
+            parser.error(str(exc))
+        records = filter_by_path_prefix(records, prefixes)
     if args.split_at:
         try:
             split_at = parse_bound(args.split_at)
