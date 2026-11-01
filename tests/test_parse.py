@@ -47,5 +47,24 @@ class TestParseLines(unittest.TestCase):
         self.assertEqual(records, [])
 
 
+class TestCombinedRequestTime(unittest.TestCase):
+    def test_trailing_request_time_becomes_duration(self):
+        line = '10.0.0.1 - - [30/Oct/2026:14:05:01 +0000] "GET /a HTTP/1.1" 200 1234 0.042'
+        record = parse_combined(line)
+        self.assertEqual(record.duration_ms, 42.0)
+        self.assertEqual(record.status, 200)
+
+    def test_integer_size_is_not_a_duration(self):
+        line = '10.0.0.1 - - [30/Oct/2026:14:05:01 +0000] "GET /a HTTP/1.1" 200 1234'
+        record = parse_combined(line)
+        self.assertIsNone(record.duration_ms)
+
+    def test_quoted_user_agent_ending_not_a_duration(self):
+        line = ('10.0.0.1 - - [30/Oct/2026:14:05:01 +0000] "GET /a HTTP/1.1" 200 1234 '
+                '"-" "Mozilla/5.0"')
+        record = parse_combined(line)
+        self.assertIsNone(record.duration_ms)
+
+
 if __name__ == "__main__":
     unittest.main()
