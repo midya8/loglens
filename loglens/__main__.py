@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 
+from .filter import filter_records, parse_bound
 from .parse import parse_lines
 from .stats import (
     error_rate,
@@ -24,12 +25,21 @@ def main(argv=None) -> int:
     parser.add_argument("--timeline", action="store_true", help="print per-bucket request/error counts")
     parser.add_argument("--bucket", type=int, default=60, help="timeline bucket size in seconds")
     parser.add_argument("--latency", action="store_true", help="print latency percentiles and slowest requests (JSON logs with durations)")
+    parser.add_argument("--since", help="only include records at/after this timestamp")
+    parser.add_argument("--until", help="only include records at/before this timestamp")
     args = parser.parse_args(argv)
 
     import sys
 
     lines = sys.stdin if args.logfile == "-" else open(args.logfile)
     records = parse_lines(lines, formats=(args.format,))
+    if args.since or args.until:
+        try:
+            since = parse_bound(args.since) if args.since else None
+            until = parse_bound(args.until) if args.until else None
+        except ValueError as exc:
+            parser.error(str(exc))
+        records = filter_records(records, since=since, until=until)
     print(f"Parsed records: {len(records)}")
     print(f"Error rate (5xx): {error_rate(records):.1%}")
     print("Status distribution:", dict(sorted(status_distribution(records).items())))
