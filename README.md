@@ -20,7 +20,8 @@ CLI:
 
 ```bash
 python -m loglens examples/access.log
-python -m loglens - --format json < app.log
+python -m loglens - < app.log                                       # format is auto-detected per line
+python -m loglens - --format json < app.log                          # or force one format
 python -m loglens examples/access.log --timeline --bucket 60
 python -m loglens examples/json.log --format json --latency
 python -m loglens examples/access.log --since 2026-10-30 --until 2026-10-31
@@ -77,7 +78,9 @@ print("ips behind 5xx:", top_error_ips(records))
   automatically, and incident reports list the agents behind 5xxs when the
   log carries them.
 - **Graceful degradation.** Unparseable lines are skipped, not fatal - real
-  log files are mixed and partially corrupt.
+  log files are mixed and partially corrupt. Format detection is per line
+  (`--format auto`, the default), so a file that switches between combined
+  and JSON lines parses both; force one parser with `--format`.
 - **Two formats, one record.** Combined-format and JSON parsers both emit the
   same `LogRecord`, so stats code never cares about the source format.
 - **Tested statistics.** Status distribution, error rate, top-N and percentile
