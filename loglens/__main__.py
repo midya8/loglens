@@ -8,6 +8,7 @@ import json
 from .compare import compare_windows, format_comparison
 from .filter import filter_records, parse_bound
 from .parse import parse_lines
+from .report import render_incident_report
 from .stats import (
     error_rate,
     latency_summary,
@@ -31,6 +32,8 @@ def main(argv=None) -> int:
     parser.add_argument("--since", help="only include records at/after this timestamp")
     parser.add_argument("--until", help="only include records at/before this timestamp")
     parser.add_argument("--split-at", help="compare stats before/after this timestamp")
+    parser.add_argument("--report", metavar="TITLE", nargs="?", const="Log analysis",
+                        help="emit a Markdown incident report instead of the text summary")
     args = parser.parse_args(argv)
 
     import sys
@@ -54,6 +57,9 @@ def main(argv=None) -> int:
         comparison = None
     if args.json:
         print(json.dumps(_summary(records, args, comparison), indent=2))
+        return 0
+    if args.report is not None:
+        print(render_incident_report(records, title=args.report, bucket_seconds=args.bucket, top=args.top), end="")
         return 0
     print(f"Parsed records: {len(records)}")
     print(f"Error rate (5xx): {error_rate(records):.1%}")
