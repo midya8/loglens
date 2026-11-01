@@ -1,8 +1,8 @@
 import unittest
-from datetime import timezone
+from datetime import datetime, timezone
 
 from loglens.parse import LogRecord
-from loglens.timeline import bucket_records, format_timeline, parse_timestamp
+from loglens.timeline import is_spike, bucket_records, format_timeline, parse_timestamp
 
 
 def rec(ts, status=200):
@@ -84,6 +84,34 @@ class TestFormatTimeline(unittest.TestCase):
 
     def test_empty_renders_empty(self):
         self.assertEqual(format_timeline([]), "")
+
+
+class TestSpikeFlagging(unittest.TestCase):
+    def bucket(self, requests, errors):
+        from loglens.timeline import Bucket
+        return Bucket(start=datetime(2026, 10, 31, 22, 0, tzinfo=timezone.utc),
+                      requests=requests, errors=errors)
+
+    def test_spike_requires_both_conditions(self):
+        self.assertTrue(is_spike(self.bucket(4, 2)))       # 50% rate, 2 errors
+        self.assertFalse(is_spike(self.bucket(1, 1)))      # 100% rate but 1 error
+        self.assertFalse(is_spike(self.bucket(100, 10)))   # 10 errors but 10% rate
+
+    def test_custom_thresholds(self):
+        self.assertTrue(is_spike(self.bucket(10, 1), min_error_rate=0.05, min_errors=1))
+
+    def test_invalid_thresholds_rejected(self):
+        with self.assertRaises(ValueError):
+            is_spike(self.bucket(4, 2), min_error_rate=0)
+        with self.assertRaises(ValueError):
+            is_spike(self.bucket(4, 2), min_errors=0)
+
+    def test_format_marks_spike(self):
+        buckets = [self.bucket(4, 2), self.bucket(10, 0)]
+        out = format_timeline(buckets)
+        lines = out.splitlines()
+        self.assertIn("<-- spike", lines[0])
+        self.assertNotIn("<-- spike", lines[1])
 
 
 if __name__ == "__main__":
