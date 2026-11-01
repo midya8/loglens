@@ -46,8 +46,10 @@ print("ips behind 5xx:", top_error_ips(records))
 - **Incident timeline.** `--timeline` buckets requests and 5xxs per minute
   (or any bucket size) so you can see exactly when an incident started.
 - **Latency view.** `--latency` reports p50/p95/p99 and the slowest requests
-  from JSON logs carrying `duration_ms` or nginx-style `request_time`;
-  logs without durations simply skip the section.
+  from JSON logs carrying `duration_ms` or nginx-style `request_time`, and
+  from combined-format logs with `$request_time` appended (a trailing
+  fractional number is read as seconds); logs without durations simply
+  skip the section.
 - **Time windows.** `--since`/`--until` scope every statistic to an incident
   window; bounds accept ISO timestamps, combined-format timestamps, or a
   bare date (midnight UTC), and compare by instant across formats.
