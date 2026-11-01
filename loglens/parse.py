@@ -1,0 +1,84 @@
+"""Parsers for common log line formats.
+
+Each parser returns a LogRecord or None for lines it cannot parse, so a
+mixed or partially corrupt file degrades gracefully instead of failing.
+"""
+
+from __future__ import annotations
+
+import json
+import re
+from dataclasses import dataclass
+
+_COMBINED = re.compile(
+    r'^(?P<ip>\S+) \S+ \S+ \[(?P<time>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+)[^"]*" '
+    r"(?P<status>\d{3}) (?P<size>\S+)"
+)
+
+
+@dataclass(frozen=True)
+class LogRecord:
+    """One parsed log event."""
+
+    timestamp: str
+    method: str
+    path: str
+    status: int
+    source_ip: str = ""
+
+
+def parse_combined(line: str) -> LogRecord | None:
+    """Parse one nginx/Apache combined-format line."""
+    match = _COMBINED.match(line.strip())
+    if not match:
+        return None
+    return LogRecord(
+        timestamp=match.group("time"),
+        method=match.group("method"),
+        path=match.group("path"),
+        status=int(match.group("status")),
+        source_ip=match.group("ip"),
+    )
+
+
+def parse_json_line(line: str) -> LogRecord | None:
+    """Parse one structured JSON log line.
+
+    Expects keys named like ``time``/``timestamp``, ``method``, ``path``
+    and ``status``; returns None when any are missing or the line is not
+    valid JSON.
+    """
+    try:
+        data = json.loads(line)
+    except (json.JSONDecodeError, TypeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    timestamp = data.get("time") or data.get("timestamp")
+    method, path, status = data.get("method"), data.get("path"), data.get("status")
+    if not (timestamp and method and path) or not isinstance(status, int):
+        return None
+    return LogRecord(
+        timestamp=str(timestamp),
+        method=str(method),
+        path=str(path),
+        status=status,
+        source_ip=str(data.get("ip", "")),
+    )
+
+
+def parse_lines(lines, formats=("combined", "json")) -> list[LogRecord]:
+    """Parse lines with the given formats, skipping unparseable ones."""
+    parsers = {"combined": parse_combined, "json": parse_json_line}
+    records = []
+    for line in lines:
+        if not line.strip():
+            continue
+        record = None
+        for fmt in formats:
+            record = parsers[fmt](line)
+            if record:
+                break
+        if record:
+            records.append(record)
+    return records
