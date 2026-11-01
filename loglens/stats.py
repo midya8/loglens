@@ -47,6 +47,22 @@ def top_user_agents(
     return Counter(r.user_agent for r in pool).most_common(limit)
 
 
+def top_referers(
+    records: list[LogRecord], limit: int = 10, errors_only: bool = False
+) -> list[tuple[str, int]]:
+    """Most frequent referers, optionally only among 5xx responses.
+
+    Answers "which page were users on when it broke?" - a checkout 5xx
+    storm referred by /cart reads differently from one with no referer.
+    Records without a referer (nginx logs "-") are skipped.
+    """
+    pool = (
+        r for r in records
+        if r.referer and (not errors_only or r.status >= 500)
+    )
+    return Counter(r.referer for r in pool).most_common(limit)
+
+
 def percentile(values: list[float], pct: float) -> float:
     """Nearest-rank percentile of a numeric sample.
 

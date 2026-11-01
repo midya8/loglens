@@ -17,6 +17,7 @@ from .stats import (
     status_distribution,
     top_error_ips,
     top_paths,
+    top_referers,
     top_user_agents,
 )
 from .timeline import bucket_records, format_timeline
@@ -42,6 +43,8 @@ def main(argv=None) -> int:
                         help="per-path breakdown: volume, error rate, p95 latency, worst first")
     parser.add_argument("--agents", action="store_true",
                         help="top user agents overall and behind 5xxs (bot vs real users)")
+    parser.add_argument("--referers", action="store_true",
+                        help="top referers overall and behind 5xxs (which page broke)")
     args = parser.parse_args(argv)
 
     import sys
@@ -92,6 +95,9 @@ def main(argv=None) -> int:
     if args.agents:
         print(f"Top {args.top} user agents:", top_user_agents(records, args.top))
         print(f"Top {args.top} error user agents:", top_user_agents(records, args.top, errors_only=True))
+    if args.referers:
+        print(f"Top {args.top} referers:", top_referers(records, args.top))
+        print(f"Top {args.top} error referers:", top_referers(records, args.top, errors_only=True))
     if args.latency:
         summary = latency_summary(records)
         if summary is None:
@@ -147,6 +153,15 @@ def _summary(records, args, comparison=None) -> dict:
         summary["top_error_user_agents"] = [
             {"user_agent": agent, "count": count}
             for agent, count in top_user_agents(records, args.top, errors_only=True)
+        ]
+    if getattr(args, "referers", False):
+        summary["top_referers"] = [
+            {"referer": referer, "count": count}
+            for referer, count in top_referers(records, args.top)
+        ]
+        summary["top_error_referers"] = [
+            {"referer": referer, "count": count}
+            for referer, count in top_referers(records, args.top, errors_only=True)
         ]
     if comparison is not None:
         summary["comparison"] = {

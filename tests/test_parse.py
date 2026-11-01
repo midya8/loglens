@@ -37,6 +37,17 @@ class TestParseCombinedAgents(unittest.TestCase):
         record = parse_combined(COMBINED)
         self.assertEqual(record.user_agent, "")
 
+    def test_referer_captured(self):
+        record = parse_combined(self.WITH_AGENT)
+        self.assertEqual(record.referer, "https://shop.example/orders")
+
+    def test_dash_referer_normalized_to_empty(self):
+        line = ('10.0.0.1 - - [30/Oct/2026:14:05:01 +0000] "GET /a HTTP/1.1" 200 100 '
+                '"-" "kube-probe/1.30"')
+        record = parse_combined(line)
+        self.assertEqual(record.referer, "")
+        self.assertEqual(record.user_agent, "kube-probe/1.30")
+
 
 class TestParseJsonLine(unittest.TestCase):
     def test_parses_fields(self):
@@ -47,6 +58,14 @@ class TestParseJsonLine(unittest.TestCase):
     def test_timestamp_alias(self):
         record = parse_json_line('{"timestamp": "t1", "method": "GET", "path": "/x", "status": 200}')
         self.assertEqual(record.timestamp, "t1")
+
+    def test_referer_keys(self):
+        record = parse_json_line('{"time":"t","method":"GET","path":"/x","status":200,"referer":"https://a/b"}')
+        self.assertEqual(record.referer, "https://a/b")
+        record = parse_json_line('{"time":"t","method":"GET","path":"/x","status":200,"referrer":"https://a/b"}')
+        self.assertEqual(record.referer, "https://a/b")
+        record = parse_json_line('{"time":"t","method":"GET","path":"/x","status":200}')
+        self.assertEqual(record.referer, "")
 
     def test_user_agent_keys(self):
         record = parse_json_line('{"time":"t","method":"GET","path":"/x","status":200,"user_agent":"curl/8.1"}')
