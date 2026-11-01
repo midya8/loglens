@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 _COMBINED = re.compile(
     r'^(?P<ip>\S+) \S+ \S+ \[(?P<time>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+)[^"]*" '
-    r'(?P<status>\d{3}) (?P<size>\S+)(?: "[^"]*" "(?P<agent>[^"]*)")?'
+    r'(?P<status>\d{3}) (?P<size>\S+)(?: "(?P<referer>[^"]*)" "(?P<agent>[^"]*)")?'
 )
 
 # nginx configs that append $request_time log it as a fractional number of
@@ -32,6 +32,7 @@ class LogRecord:
     source_ip: str = ""
     duration_ms: float | None = None
     user_agent: str = ""
+    referer: str = ""
 
 
 def parse_combined(line: str) -> LogRecord | None:
@@ -56,6 +57,7 @@ def parse_combined(line: str) -> LogRecord | None:
         source_ip=match.group("ip"),
         duration_ms=duration_ms,
         user_agent=match.group("agent") or "",
+        referer="" if (match.group("referer") or "") == "-" else (match.group("referer") or ""),
     )
 
 
@@ -91,6 +93,7 @@ def parse_json_line(line: str) -> LogRecord | None:
         duration_ms=None if duration_ms is None else float(duration_ms),
         source_ip=str(data.get("ip", "")),
         user_agent=str(data.get("user_agent") or data.get("agent") or ""),
+        referer=str(data.get("referer") or data.get("referrer") or ""),
     )
 
 
