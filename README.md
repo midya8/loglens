@@ -23,6 +23,7 @@ python -m loglens examples/access.log
 python -m loglens - --format json < app.log
 python -m loglens examples/access.log --timeline --bucket 60
 python -m loglens examples/json.log --format json --latency
+python -m loglens examples/access.log --since 2026-10-30 --until 2026-10-31
 ```
 
 Library:
@@ -44,6 +45,9 @@ print("ips behind 5xx:", top_error_ips(records))
 - **Latency view.** `--latency` reports p50/p95/p99 and the slowest requests
   from JSON logs carrying `duration_ms` or nginx-style `request_time`;
   logs without durations simply skip the section.
+- **Time windows.** `--since`/`--until` scope every statistic to an incident
+  window; bounds accept ISO timestamps, combined-format timestamps, or a
+  bare date (midnight UTC), and compare by instant across formats.
 - **Graceful degradation.** Unparseable lines are skipped, not fatal - real
   log files are mixed and partially corrupt.
 - **Two formats, one record.** Combined-format and JSON parsers both emit the
@@ -63,7 +67,8 @@ python -m unittest discover -s tests -v
 loglens/
   parse.py     # combined-format and JSON parsers -> LogRecord
   stats.py     # error rate, distributions, top-N, latency percentiles
-  timeline.py  # per-bucket request/error timeline
+  timeline.py  # per-bucket request/error timeline, timestamp parsing
+  filter.py    # time-window filtering
   __main__.py  # CLI summary
 tests/         # unittest suite, no external dependencies
 examples/      # sample access log
