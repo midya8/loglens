@@ -118,6 +118,37 @@ class TestRenderIncidentReport(unittest.TestCase):
         out = render_incident_report(self.records)
         self.assertNotIn("## User agents behind 5xxs", out)
 
+    def test_methods_section(self):
+        records = [
+            LogRecord(timestamp="2026-10-31T22:00:01Z", method="POST", path="/pay",
+                      status=500, source_ip="10.0.0.1"),
+            LogRecord(timestamp="2026-10-31T22:00:02Z", method="POST", path="/pay",
+                      status=502, source_ip="10.0.0.1"),
+            LogRecord(timestamp="2026-10-31T22:00:03Z", method="GET", path="/a",
+                      status=503, source_ip="10.0.0.1"),
+            LogRecord(timestamp="2026-10-31T22:00:04Z", method="GET", path="/a",
+                      status=200, source_ip="10.0.0.1"),
+        ]
+        out = render_incident_report(records)
+        self.assertIn("## Methods behind 5xxs", out)
+        self.assertIn("`POST` - 2 errors", out)
+        self.assertIn("`GET` - 1 error\n", out)
+        # ranked by error count, and the 200 GET is not counted
+        self.assertLess(out.index("`POST`"), out.index("`GET` - 1 error"))
+
+    def test_methods_section_omitted_without_errors(self):
+        records = [rec("2026-10-31T22:00:01Z", "/a", 200)]
+        out = render_incident_report(records)
+        self.assertNotIn("## Methods behind 5xxs", out)
+
+    def test_methods_section_skips_empty_methods(self):
+        records = [
+            LogRecord(timestamp="2026-10-31T22:00:01Z", method="", path="/a",
+                      status=500, source_ip="10.0.0.1"),
+        ]
+        out = render_incident_report(records)
+        self.assertNotIn("## Methods behind 5xxs", out)
+
     def test_comparison_section_included(self):
         records = [
             rec("2026-10-31T21:59:00Z", "/a", 200),
