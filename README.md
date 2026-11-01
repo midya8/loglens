@@ -30,6 +30,7 @@ python -m loglens app.log --status 5xx --path-prefix /api     # API errors only
 python -m loglens app.log --max-error-rate 0.05               # exit 1 above 5% 5xxs
 python -m loglens app.log --format json --json   # machine-readable summary for tooling
 python -m loglens app.log --split-at 2026-10-31T22:00:00Z   # before/after comparison
+python -m loglens app.log --vs examples/access-baseline.log   # vs a baseline log
 python -m loglens app.log --report "Checkout 5xx spike"     # Markdown incident report
 python -m loglens app.log --by-path                          # per-path volume/errors/p95
 python -m loglens app.log --by-ip                            # per-client volume/errors/p95
@@ -103,6 +104,11 @@ print("ips behind 5xx:", top_error_ips(records))
   client retry-storming us?". `--by-hour` buckets the whole window by
   UTC hour of day, so a daily pattern - the nightly batch job, the lunch
   peak - stands out in a multi-day log.
+- **Baseline comparison.** `--vs baseline.log` answers "did this release
+  make things worse?" across two whole logs: error-rate delta, new and
+  resolved error paths, the paths with the biggest error-count increases
+  (ranked regressions), and p50/p95 latency shifts when both sides carry
+  durations. Also available in `--json` as a `comparison` block.
 - **Response sizes.** `--by-size` turns the bytes column into bandwidth
   answers: total bytes served, mean and largest response, and the paths
   ranked by bytes moved (with share of total) - because the most
