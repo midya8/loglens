@@ -25,7 +25,9 @@ from .timeline import bucket_records, format_timeline
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="loglens")
     parser.add_argument("logfile", help="'-' for stdin")
-    parser.add_argument("--format", choices=("combined", "json"), default="combined")
+    parser.add_argument("--format", choices=("auto", "combined", "json"), default="auto",
+                        help="log format; auto (default) detects each line independently, "
+                             "so mixed files parse")
     parser.add_argument("--top", type=int, default=5)
     parser.add_argument("--timeline", action="store_true", help="print per-bucket request/error counts")
     parser.add_argument("--bucket", type=int, default=60, help="timeline bucket size in seconds")
@@ -45,7 +47,8 @@ def main(argv=None) -> int:
     import sys
 
     lines = sys.stdin if args.logfile == "-" else open(args.logfile)
-    records = parse_lines(lines, formats=(args.format,))
+    formats = ("combined", "json") if args.format == "auto" else (args.format,)
+    records = parse_lines(lines, formats=formats)
     if args.since or args.until:
         try:
             since = parse_bound(args.since) if args.since else None
