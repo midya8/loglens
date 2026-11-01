@@ -23,9 +23,10 @@ from .stats import (
     top_paths,
     top_referers,
     hourly_breakdown,
+    latency_histogram,
     top_user_agents,
 )
-from .timeline import bucket_records, format_timeline, spike_windows
+from .timeline import bucket_records, format_timeline, spike_windows, throughput_summary
 
 
 def main(argv=None) -> int:
@@ -62,6 +63,10 @@ def main(argv=None) -> int:
                         help="per-hour-of-day (UTC) volume, error rate and p95 - daily patterns")
     parser.add_argument("--spikes", action="store_true",
                         help="group consecutive spike buckets into flare-up windows")
+    parser.add_argument("--throughput", action="store_true",
+                        help="mean and peak per-bucket throughput over the timeline")
+    parser.add_argument("--latency-dist", action="store_true",
+                        help="latency distribution over fixed ms buckets")
     parser.add_argument("--agents", action="store_true",
                         help="top user agents overall and behind 5xxs (bot vs real users)")
     parser.add_argument("--methods", action="store_true",
@@ -161,6 +166,21 @@ def main(argv=None) -> int:
                       f"{w.requests:>5} req  {w.errors:>3} err  {w.error_rate:>5.0%}")
         else:
             print("\nSpike windows: none")
+    if args.throughput:
+        tp = throughput_summary(bucket_records(records, args.bucket))
+        if tp is None:
+            print("\nThroughput: no timestamped records")
+        else:
+            print(f"\nThroughput ({args.bucket}s buckets):")
+            print(f"  mean {tp['mean_requests_per_bucket']:.1f} req/bucket over "
+                  f"{tp['buckets']} buckets ({tp['total_requests']} requests)")
+            print(f"  peak {tp['peak_requests']} req at {tp['peak_start']} "
+                  f"({tp['peak_errors']} errors)")
+    if args.latency_dist:
+        print("\nLatency distribution (timed requests):")
+        for row in latency_histogram(records):
+            bar = "#" * row["count"]
+            print(f"  {row['bucket']:>9s} {row['count']:>5}  {bar}")
     if args.by_hour:
         print("\nPer-hour breakdown (UTC):")
         print(f"  {'hour':>4} {'req':>6} {'err':>4} {'rate':>6} {'p95':>9}")
@@ -252,6 +272,10 @@ def _summary(records, args, comparison=None) -> dict:
         summary["path_breakdown"] = path_breakdown(records, args.top, sort=args.sort)
     if getattr(args, "by_hour", False):
         summary["hourly_breakdown"] = hourly_breakdown(records)
+    if getattr(args, "throughput", False):
+        summary["throughput"] = throughput_summary(bucket_records(records, args.bucket))
+    if getattr(args, "latency_dist", False):
+        summary["latency_distribution"] = latency_histogram(records)
     if getattr(args, "spikes", False):
         summary["spike_windows"] = [
             {"start": w.start.isoformat(), "end": w.end.isoformat(),
