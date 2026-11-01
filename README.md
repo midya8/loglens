@@ -26,6 +26,7 @@ python -m loglens examples/json.log --format json --latency
 python -m loglens examples/access.log --since 2026-10-30 --until 2026-10-31
 python -m loglens app.log --format json --json   # machine-readable summary for tooling
 python -m loglens app.log --split-at 2026-10-31T22:00:00Z   # before/after comparison
+python -m loglens app.log --report "Checkout 5xx spike"     # Markdown incident report
 ```
 
 Library:
@@ -56,6 +57,9 @@ print("ips behind 5xx:", top_error_ips(records))
 - **Before/after comparison.** `--split-at` compares the windows on either
   side of a deploy or alert: error-rate delta, newly failing paths, and
   paths that recovered.
+- **Incident reports.** `--report "Title"` renders the findings as a
+  Markdown document - window, rates, failing paths, source IPs, latency,
+  and the error peak - ready to paste into an incident doc or ticket.
 - **Graceful degradation.** Unparseable lines are skipped, not fatal - real
   log files are mixed and partially corrupt.
 - **Two formats, one record.** Combined-format and JSON parsers both emit the
@@ -78,6 +82,7 @@ loglens/
   timeline.py  # per-bucket request/error timeline, timestamp parsing
   filter.py    # time-window filtering
   compare.py   # before/after window comparison
+  report.py    # Markdown incident report
   __main__.py  # CLI summary
 tests/         # unittest suite, no external dependencies
 examples/      # sample access log
