@@ -15,6 +15,11 @@ _COMBINED = re.compile(
     r"(?P<status>\d{3}) (?P<size>\S+)"
 )
 
+# nginx configs that append $request_time log it as a fractional number of
+# seconds at end of line (e.g. `... 200 1234 0.042`). Integer-only trailing
+# tokens are treated as the response size, not a duration.
+_TRAILING_REQUEST_TIME = re.compile(r"\s(?P<rt>\d+\.\d+)\s*$")
+
 
 @dataclass(frozen=True)
 class LogRecord:
@@ -29,16 +34,25 @@ class LogRecord:
 
 
 def parse_combined(line: str) -> LogRecord | None:
-    """Parse one nginx/Apache combined-format line."""
+    """Parse one nginx/Apache combined-format line.
+
+    A trailing fractional number is treated as nginx $request_time in
+    seconds and exposed as duration_ms.
+    """
     match = _COMBINED.match(line.strip())
     if not match:
         return None
+    duration_ms = None
+    rt = _TRAILING_REQUEST_TIME.search(line)
+    if rt:
+        duration_ms = float(rt.group("rt")) * 1000.0
     return LogRecord(
         timestamp=match.group("time"),
         method=match.group("method"),
         path=match.group("path"),
         status=int(match.group("status")),
         source_ip=match.group("ip"),
+        duration_ms=duration_ms,
     )
 
 
