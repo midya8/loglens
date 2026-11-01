@@ -319,5 +319,27 @@ class TestJsonOutput(unittest.TestCase):
         self.assertTrue(out.startswith("Parsed records: 3"))
 
 
+class TestByHourCLI(unittest.TestCase):
+    def test_by_hour_text(self):
+        code, out = run(["--by-hour"])
+        assert code == 0
+        assert "Per-hour breakdown (UTC):" in out
+        assert "  22   " in out
+
+    def test_by_hour_json(self):
+        code, out = run(["--json", "--by-hour"])
+        assert code == 0
+        payload = json.loads(out)
+        rows = payload["hourly_breakdown"]
+        assert [r["hour"] for r in rows] == [22]
+        assert rows[0]["requests"] == 3
+        assert rows[0]["errors"] == 1
+
+    def test_by_hour_absent_without_flag(self):
+        code, out = run([])
+        assert code == 0
+        assert "Per-hour breakdown" not in out
+
+
 if __name__ == "__main__":
     unittest.main()

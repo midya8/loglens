@@ -4,6 +4,7 @@ from loglens.parse import LogRecord
 from loglens.stats import status_classes, top_methods, top_referers, top_user_agents
 from loglens.stats import (
     error_rate,
+    hourly_breakdown,
     ip_breakdown,
     path_breakdown,
     percentile,
@@ -207,6 +208,49 @@ class TestTopUserAgents(unittest.TestCase):
     def test_empty_and_agentless(self):
         self.assertEqual(top_user_agents([]), [])
         self.assertEqual(top_user_agents([self.rec(500, "")]), [])
+
+
+class TestHourlyBreakdown(unittest.TestCase):
+    @staticmethod
+    def timed(hour, status=200, day=30, duration=None):
+        return LogRecord(
+            timestamp=f"2026-10-{day}T{hour:02d}:05:00+00:00",
+            method="GET", path="/a", status=status, duration_ms=duration,
+        )
+
+    def test_groups_by_utc_hour_across_days(self):
+        rows = hourly_breakdown([self.timed(14, day=30), self.timed(14, day=31)])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["hour"], 14)
+        self.assertEqual(rows[0]["requests"], 2)
+
+    def test_error_rate_and_p95(self):
+        rows = hourly_breakdown([
+            self.timed(14, 200, duration=100.0),
+            self.timed(14, 503, duration=500.0),
+        ])
+        self.assertEqual(rows[0]["errors"], 1)
+        self.assertAlmostEqual(rows[0]["error_rate"], 0.5)
+        self.assertIsNotNone(rows[0]["p95_ms"])
+
+    def test_p95_none_without_durations(self):
+        rows = hourly_breakdown([self.timed(9)])
+        self.assertIsNone(rows[0]["p95_ms"])
+
+    def test_sorted_by_hour(self):
+        rows = hourly_breakdown([self.timed(22), self.timed(3), self.timed(14)])
+        self.assertEqual([r["hour"] for r in rows], [3, 14, 22])
+
+    def test_unparseable_timestamps_skipped(self):
+        rows = hourly_breakdown([
+            LogRecord(timestamp="t", method="GET", path="/a", status=200),
+            self.timed(14),
+        ])
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["requests"], 1)
+
+    def test_empty_input(self):
+        self.assertEqual(hourly_breakdown([]), [])
 
 
 if __name__ == "__main__":

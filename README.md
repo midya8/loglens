@@ -33,6 +33,7 @@ python -m loglens app.log --split-at 2026-10-31T22:00:00Z   # before/after compa
 python -m loglens app.log --report "Checkout 5xx spike"     # Markdown incident report
 python -m loglens app.log --by-path                          # per-path volume/errors/p95
 python -m loglens app.log --by-ip                            # per-client volume/errors/p95
+python -m loglens app.log --by-hour                          # hour-of-day pattern (UTC)
 python -m loglens app.log --errors                           # list the 5xx requests themselves
 python -m loglens app.log --methods                          # top HTTP methods, incl. behind 5xxs
 python -m loglens app.log --agents                           # top user agents, incl. behind 5xxs
@@ -87,7 +88,9 @@ print("ips behind 5xx:", top_error_ips(records))
   error count - or by volume or p95 latency with `--sort requests|p95` -
   with volume, error rate and p95 latency, so the path causing the pain
   leads. `--by-ip` gives the same table per source IP, answering "is one
-  client retry-storming us?".
+  client retry-storming us?". `--by-hour` buckets the whole window by
+  UTC hour of day, so a daily pattern - the nightly batch job, the lunch
+  peak - stands out in a multi-day log.
 - **Methods, user agents and referers.** `--methods` answers "is the spike
   on writes or reads?" with method counts overall and behind 5xxs.
   `--agents` ranks user agents overall and
