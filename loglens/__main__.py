@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 
 from .filter import filter_records, parse_bound
 from .parse import parse_lines
@@ -25,6 +26,7 @@ def main(argv=None) -> int:
     parser.add_argument("--timeline", action="store_true", help="print per-bucket request/error counts")
     parser.add_argument("--bucket", type=int, default=60, help="timeline bucket size in seconds")
     parser.add_argument("--latency", action="store_true", help="print latency percentiles and slowest requests (JSON logs with durations)")
+    parser.add_argument("--json", action="store_true", help="emit the summary as JSON instead of text")
     parser.add_argument("--since", help="only include records at/after this timestamp")
     parser.add_argument("--until", help="only include records at/before this timestamp")
     args = parser.parse_args(argv)
@@ -40,6 +42,9 @@ def main(argv=None) -> int:
         except ValueError as exc:
             parser.error(str(exc))
         records = filter_records(records, since=since, until=until)
+    if args.json:
+        print(json.dumps(_summary(records, args), indent=2))
+        return 0
     print(f"Parsed records: {len(records)}")
     print(f"Error rate (5xx): {error_rate(records):.1%}")
     print("Status distribution:", dict(sorted(status_distribution(records).items())))
@@ -59,6 +64,42 @@ def main(argv=None) -> int:
             for r in slowest_requests(records, args.top):
                 print(f"  {r.duration_ms:8.1f} ms  {r.method} {r.path} -> {r.status}")
     return 0
+
+
+def _summary(records, args) -> dict:
+    """Build the machine-readable summary for --json."""
+    summary = {
+        "parsed_records": len(records),
+        "error_rate_5xx": error_rate(records),
+        "status_distribution": {str(k): v for k, v in sorted(status_distribution(records).items())},
+        "top_paths": [
+            {"path": path, "count": count}
+            for path, count in top_paths(records, args.top)
+        ],
+        "top_error_paths": [
+            {"path": path, "count": count}
+            for path, count in top_paths(records, args.top, errors_only=True)
+        ],
+        "top_error_ips": [
+            {"ip": ip, "count": count}
+            for ip, count in top_error_ips(records, args.top)
+        ],
+    }
+    latency = latency_summary(records)
+    if latency is not None:
+        summary["latency_ms"] = {k: (int(v) if k == "count" else v) for k, v in latency.items()}
+        summary["slowest_requests"] = [
+            {"method": r.method, "path": r.path, "status": r.status,
+             "duration_ms": r.duration_ms}
+            for r in slowest_requests(records, args.top)
+        ]
+    if args.timeline:
+        summary["timeline"] = [
+            {"start": b.start.isoformat(), "requests": b.requests,
+             "errors": b.errors, "error_rate": b.error_rate}
+            for b in bucket_records(records, args.bucket)
+        ]
+    return summary
 
 
 if __name__ == "__main__":

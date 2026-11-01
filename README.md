@@ -24,6 +24,7 @@ python -m loglens - --format json < app.log
 python -m loglens examples/access.log --timeline --bucket 60
 python -m loglens examples/json.log --format json --latency
 python -m loglens examples/access.log --since 2026-10-30 --until 2026-10-31
+python -m loglens app.log --format json --json   # machine-readable summary for tooling
 ```
 
 Library:
@@ -48,6 +49,9 @@ print("ips behind 5xx:", top_error_ips(records))
 - **Time windows.** `--since`/`--until` scope every statistic to an incident
   window; bounds accept ISO timestamps, combined-format timestamps, or a
   bare date (midnight UTC), and compare by instant across formats.
+- **Composable output.** `--json` emits the whole summary (counts, rates,
+  top-N, latency, timeline) as JSON so dashboards and scripts can consume
+  it without scraping text.
 - **Graceful degradation.** Unparseable lines are skipped, not fatal - real
   log files are mixed and partially corrupt.
 - **Two formats, one record.** Combined-format and JSON parsers both emit the
