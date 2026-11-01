@@ -1,7 +1,7 @@
 import unittest
 
 from loglens.parse import LogRecord
-from loglens.stats import status_classes, top_referers, top_user_agents
+from loglens.stats import status_classes, top_methods, top_referers, top_user_agents
 from loglens.stats import (
     error_rate,
     path_breakdown,
@@ -110,6 +110,24 @@ class TestStatusClasses(unittest.TestCase):
     def test_empty_input_returns_zeroed_classes(self):
         self.assertEqual(status_classes([]),
                          {"2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0, "other": 0})
+
+
+class TestTopMethods(unittest.TestCase):
+    def rec(self, method, status):
+        return LogRecord(timestamp="t", method=method, path="/x", status=status)
+
+    def test_counts_and_ranking(self):
+        records = [self.rec("GET", 200), self.rec("POST", 500),
+                   self.rec("POST", 200), self.rec("", 200)]
+        self.assertEqual(top_methods(records), [("POST", 2), ("GET", 1)])
+
+    def test_errors_only(self):
+        records = [self.rec("GET", 200), self.rec("POST", 500), self.rec("GET", 503)]
+        self.assertEqual(top_methods(records, errors_only=True),
+                         [("POST", 1), ("GET", 1)])  # ties keep first-seen order
+
+    def test_empty_methods_skipped(self):
+        self.assertEqual(top_methods([self.rec("", 500)], errors_only=True), [])
 
 
 class TestTopReferers(unittest.TestCase):
