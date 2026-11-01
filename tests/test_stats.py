@@ -76,6 +76,22 @@ class TestPathBreakdown(unittest.TestCase):
         rows = path_breakdown(records)
         self.assertEqual([r["path"] for r in rows], ["/a", "/b"])
 
+    def test_sort_by_requests(self):
+        records = [self.rec("/bad", 500), self.rec("/busy", 200),
+                   self.rec("/busy", 200), self.rec("/busy", 200)]
+        rows = path_breakdown(records, sort="requests")
+        self.assertEqual([r["path"] for r in rows], ["/busy", "/bad"])
+
+    def test_sort_by_p95_untimed_last(self):
+        records = [self.rec("/slow", 200, 900.0), self.rec("/fast", 200, 10.0),
+                   self.rec("/untimed", 500)]
+        rows = path_breakdown(records, sort="p95")
+        self.assertEqual([r["path"] for r in rows], ["/slow", "/fast", "/untimed"])
+
+    def test_unknown_sort_rejected(self):
+        with self.assertRaises(ValueError):
+            path_breakdown([self.rec("/a", 200)], sort="bogus")
+
 
 class TestStatusClasses(unittest.TestCase):
     def rec(self, status):
