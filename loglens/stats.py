@@ -223,3 +223,29 @@ def hourly_breakdown(records: list[LogRecord]) -> list[dict]:
             "p95_ms": percentile(durations, 95) if durations else None,
         })
     return rows
+
+
+_LATENCY_BUCKETS_MS = (50.0, 100.0, 250.0, 500.0, 1000.0)
+
+
+def latency_histogram(records: list[LogRecord]) -> list[dict]:
+    """Latency distribution over fixed millisecond buckets.
+
+    Percentiles compress the shape away; the histogram shows it - a p95
+    of 400ms reads differently when the mass sits at 250-500ms versus a
+    long tail past 1s. Untimed records are skipped. Buckets are labelled
+    by their upper bound ("<=50ms", ..., ">1000ms") and always returned
+    in order, empty buckets included, so charts and text line up.
+    """
+    counts = [0] * (len(_LATENCY_BUCKETS_MS) + 1)
+    for record in records:
+        if record.duration_ms is None:
+            continue
+        for i, bound in enumerate(_LATENCY_BUCKETS_MS):
+            if record.duration_ms <= bound:
+                counts[i] += 1
+                break
+        else:
+            counts[-1] += 1
+    labels = [f"<={b:g}ms" for b in _LATENCY_BUCKETS_MS] + [f">{_LATENCY_BUCKETS_MS[-1]:g}ms"]
+    return [{"bucket": label, "count": count} for label, count in zip(labels, counts)]
