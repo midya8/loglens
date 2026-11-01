@@ -22,6 +22,7 @@ from .stats import (
     top_methods,
     top_paths,
     top_referers,
+    hourly_breakdown,
     top_user_agents,
 )
 from .timeline import bucket_records, format_timeline
@@ -57,6 +58,8 @@ def main(argv=None) -> int:
                         help="per-source-IP breakdown: volume, error rate, p95 latency, worst first")
     parser.add_argument("--by-path", action="store_true",
                         help="per-path breakdown: volume, error rate, p95 latency, worst first")
+    parser.add_argument("--by-hour", action="store_true",
+                        help="per-hour-of-day (UTC) volume, error rate and p95 - daily patterns")
     parser.add_argument("--agents", action="store_true",
                         help="top user agents overall and behind 5xxs (bot vs real users)")
     parser.add_argument("--methods", action="store_true",
@@ -146,6 +149,13 @@ def main(argv=None) -> int:
             p95 = f"{row['p95_ms']:.0f} ms" if row['p95_ms'] is not None else "-"
             print(f"  {row['path']:40s} {row['requests']:>6} {row['errors']:>4} "
                   f"{row['error_rate']:>6.0%} {p95:>9}")
+    if args.by_hour:
+        print("\nPer-hour breakdown (UTC):")
+        print(f"  {'hour':>4} {'req':>6} {'err':>4} {'rate':>6} {'p95':>9}")
+        for row in hourly_breakdown(records):
+            p95 = f"{row['p95_ms']:.0f} ms" if row["p95_ms"] is not None else "-"
+            print(f"  {row['hour']:02d}   {row['requests']:>6} {row['errors']:>4} "
+                  f"{row['error_rate']:>6.0%} {p95:>9}")
     if args.agents:
         print(f"Top {args.top} user agents:", top_user_agents(records, args.top))
         print(f"Top {args.top} error user agents:", top_user_agents(records, args.top, errors_only=True))
@@ -228,6 +238,8 @@ def _summary(records, args, comparison=None) -> dict:
         summary["ip_breakdown"] = ip_breakdown(records, args.top, sort=args.sort)
     if getattr(args, "by_path", False):
         summary["path_breakdown"] = path_breakdown(records, args.top, sort=args.sort)
+    if getattr(args, "by_hour", False):
+        summary["hourly_breakdown"] = hourly_breakdown(records)
     if getattr(args, "agents", False):
         summary["top_user_agents"] = [
             {"user_agent": agent, "count": count}
