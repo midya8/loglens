@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 
 from .compare import (compare_logs, compare_windows, format_comparison,
                       format_log_comparison)
 from .filter import (filter_by_path_prefix, filter_by_status, filter_records,
                      parse_bound, parse_prefix_spec, parse_status_spec)
 from .parse import parse_lines
+from .apdex import apdex_by_path, apdex_score
 from .report import render_incident_report
 from .stats import (
     error_rate,
@@ -52,6 +54,10 @@ def main(argv=None) -> int:
     parser.add_argument("--split-at", help="compare stats before/after this timestamp")
     parser.add_argument("--max-error-rate", type=float, metavar="FRACTION",
                         help="exit 1 when the 5xx rate exceeds FRACTION (0-1) - a pipeline health gate")
+    parser.add_argument("--apdex", type=float, metavar="SECONDS", default=None,
+                        help="Apdex score for threshold T in seconds: overall plus per-path, worst first")
+    parser.add_argument("--min-apdex", type=float, metavar="SCORE", default=None,
+                        help="exit 1 when the Apdex score falls below SCORE (0-1); requires --apdex")
     parser.add_argument("--status",
                         help="only include these statuses: exact codes and/or Nxx classes, comma-separated (e.g. 5xx,404)")
     parser.add_argument("--path-prefix",
@@ -126,15 +132,20 @@ def main(argv=None) -> int:
             return 2
         log_comparison = compare_logs(baseline_records, records)
     gate = _gate(args, parser, records)
+    apdex_gate = _apdex_gate(args, parser, records)
+    exit_code = 1 if (gate == 1 or apdex_gate == 1) else 0
     if args.json:
         summary = _summary(records, args, comparison, log_comparison)
         if gate is not None:
             summary["max_error_rate"] = args.max_error_rate
             summary["within_error_budget"] = gate == 0
+        if apdex_gate is not None:
+            summary["min_apdex"] = args.min_apdex
+            summary["apdex_met"] = apdex_gate == 0
         print(json.dumps(summary, indent=2))
-        return gate or 0
+        return exit_code
     if args.report is not None:
-        print(render_incident_report(records, title=args.report, bucket_seconds=args.bucket, top=args.top, comparison=comparison), end="")
+        print(render_incident_report(records, title=args.report, bucket_seconds=args.bucket, top=args.top, comparison=comparison, apdex_threshold=args.apdex), end="")
         return gate or 0
     print(f"Parsed records: {len(records)}")
     print(f"Error rate (5xx): {error_rate(records):.1%}")
@@ -239,13 +250,36 @@ def main(argv=None) -> int:
             print(f"Slowest {args.top} requests:")
             for r in slowest_requests(records, args.top):
                 print(f"  {r.duration_ms:8.1f} ms  {r.method} {r.path} -> {r.status}")
+    if args.apdex is not None:
+        overall = apdex_score(records, args.apdex)
+        if overall is None:
+            print(f"\nApdex (T={args.apdex:g}s): no durations in log "
+                  "(needs JSON lines with duration_ms or request_time)")
+        else:
+            print(f"\nApdex (T={overall['threshold_s']:g}s): {overall['score']:.3f} over "
+                  f"{overall['samples']} timed requests "
+                  f"({overall['satisfied']} satisfied, {overall['tolerating']} tolerating, "
+                  f"{overall['frustrated']} frustrated)")
+            rows = apdex_by_path(records, args.apdex, args.top)
+            if rows:
+                print(f"  {'path':32s} {'score':>6s} {'req':>6s}  s/t/f")
+                for row in rows:
+                    print(f"  {row['path']:32s} {row['score']:>6.3f} {row['samples']:>6}  "
+                          f"{row['satisfied']}/{row['tolerating']}/{row['frustrated']}")
     if gate is not None:
         rate = error_rate(records)
         if gate:
             print(f"\nGATE FAILED: error rate {rate:.1%} exceeds --max-error-rate {args.max_error_rate:.1%}")
         else:
             print(f"\nGate passed: error rate {rate:.1%} within --max-error-rate {args.max_error_rate:.1%}")
-    return gate or 0
+    if apdex_gate is not None and args.apdex is not None:
+        score = apdex_score(records, args.apdex)
+        if score is not None:
+            if apdex_gate:
+                print(f"\nGATE FAILED: Apdex {score['score']:.3f} below --min-apdex {args.min_apdex:.3f}")
+            else:
+                print(f"\nGate passed: Apdex {score['score']:.3f} meets --min-apdex {args.min_apdex:.3f}")
+    return exit_code
 
 
 def _gate(args, parser, records) -> int | None:
@@ -255,6 +289,24 @@ def _gate(args, parser, records) -> int | None:
     if not 0.0 <= args.max_error_rate <= 1.0:
         parser.error("--max-error-rate must be between 0 and 1")
     return 1 if error_rate(records) > args.max_error_rate else 0
+
+
+def _apdex_gate(args, parser, records) -> int | None:
+    """Evaluate --min-apdex: None when unset, else 0 pass / 1 breach."""
+    if args.min_apdex is None:
+        return None
+    if args.apdex is None:
+        parser.error("--min-apdex requires --apdex SECONDS")
+    if not 0.0 <= args.min_apdex <= 1.0:
+        parser.error("--min-apdex must be between 0 and 1")
+    if args.apdex <= 0:
+        parser.error("--apdex threshold must be positive")
+    score = apdex_score(records, args.apdex)
+    if score is None:
+        print("warning: --min-apdex cannot be evaluated: no durations in log; "
+              "failing the gate", file=sys.stderr)
+        return 1
+    return 1 if score["score"] < args.min_apdex else 0
 
 
 def _summary(records, args, comparison=None, log_comparison=None) -> dict:
@@ -280,11 +332,18 @@ def _summary(records, args, comparison=None, log_comparison=None) -> dict:
     latency = latency_summary(records)
     if latency is not None:
         summary["latency_ms"] = {k: (int(v) if k == "count" else v) for k, v in latency.items()}
+    if latency is not None:
         summary["slowest_requests"] = [
             {"method": r.method, "path": r.path, "status": r.status,
              "duration_ms": r.duration_ms}
             for r in slowest_requests(records, args.top)
         ]
+    if getattr(args, "apdex", None) is not None:
+        if args.apdex <= 0:
+            raise ValueError("--apdex threshold must be positive")
+        overall = apdex_score(records, args.apdex)
+        if overall is not None:
+            summary["apdex"] = {**overall, "by_path": apdex_by_path(records, args.apdex, args.top)}
     if args.timeline:
         summary["timeline"] = [
             {"start": b.start.isoformat(), "requests": b.requests,
