@@ -28,6 +28,8 @@ python -m loglens examples/access.log --since 2026-10-30 --until 2026-10-31
 python -m loglens examples/access.log --status 5xx            # errors only
 python -m loglens app.log --status 5xx --path-prefix /api     # API errors only
 python -m loglens app.log --max-error-rate 0.05               # exit 1 above 5% 5xxs
+python -m loglens app.log --format json --apdex 0.5         # Apdex score at T=0.5s, per path
+python -m loglens app.log --format json --apdex 0.5 --min-apdex 0.94   # exit 1 below 0.94
 python -m loglens app.log --format json --json   # machine-readable summary for tooling
 python -m loglens app.log --split-at 2026-10-31T22:00:00Z   # before/after comparison
 python -m loglens app.log --vs examples/access-baseline.log   # vs a baseline log
@@ -68,6 +70,16 @@ print("ips behind 5xx:", top_error_ips(records))
   from combined-format logs with `$request_time` appended (a trailing
   fractional number is read as seconds); logs without durations simply
   skip the section.
+- **Apdex scoring.** `--apdex SECONDS` computes the Apdex user-satisfaction
+  score at threshold T: requests within T are satisfied, within 4T
+  tolerating, beyond 4T frustrated, and the score is
+  (satisfied + tolerating/2) / samples - one number for "how responsive
+  did this log feel", plus a per-path table worst-first so the endpoint
+  dragging the score down leads. `--min-apdex 0.94` turns it into a
+  pipeline gate (exit 1 below the threshold, and a log with no durations
+  fails the gate rather than passing unmeasured), and the incident report
+  gains an Apdex section when `--apdex` is set. Also in `--json` as an
+  `apdex` block with per-path rows.
 - **Time windows.** `--since`/`--until` scope every statistic to an incident
   window; bounds accept ISO timestamps, combined-format timestamps, or a
   bare date (midnight UTC), and compare by instant across formats.
@@ -144,6 +156,11 @@ print("ips behind 5xx:", top_error_ips(records))
 python -m unittest discover -s tests -v
 ```
 
+231 tests cover parsing (both formats, mixed files, corrupt lines),
+statistics, timeline bucketing and spike windows, latency and Apdex
+scoring, filters, before/after and baseline comparisons, report rendering,
+and every CLI flag including the exit-code gates.
+
 ## Layout
 
 ```
@@ -153,6 +170,7 @@ loglens/
   timeline.py  # per-bucket request/error timeline, timestamp parsing
   filter.py    # time-window filtering
   compare.py   # before/after window comparison
+  apdex.py     # Apdex user-satisfaction scoring (overall and per path)
   report.py    # Markdown incident report
   __main__.py  # CLI summary
 tests/         # unittest suite, no external dependencies

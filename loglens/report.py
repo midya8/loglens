@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from .compare import WindowComparison
 from .parse import LogRecord
+from .apdex import apdex_by_path, apdex_score
 from .stats import (
     error_rate,
     latency_summary,
@@ -35,11 +36,14 @@ def render_incident_report(
     bucket_seconds: int = 60,
     top: int = 5,
     comparison: WindowComparison | None = None,
+    apdex_threshold: float | None = None,
 ) -> str:
     """Render records as a Markdown incident report.
 
     When *comparison* is given (from ``compare_windows``), a before/after
     section is included so the report stands alone as a deploy writeup.
+    When *apdex_threshold* is given, an Apdex section scores responsiveness
+    against that T (seconds) overall and per path.
     """
     lines = [f"# {title}", ""]
     if not records:
@@ -159,6 +163,25 @@ def render_incident_report(
         for r in slowest_requests(records, top):
             lines.append(f"- {r.duration_ms:.1f} ms - `{r.method} {r.path}` -> {r.status}")
         lines.append("")
+
+    if apdex_threshold is not None:
+        overall = apdex_score(records, apdex_threshold)
+        if overall is not None:
+            lines.append(f"## Apdex (T={overall['threshold_s']:g}s)")
+            lines.append("")
+            lines.append(
+                f"Score {overall['score']:.3f} over {overall['samples']} timed requests "
+                f"({overall['satisfied']} satisfied, {overall['tolerating']} tolerating, "
+                f"{overall['frustrated']} frustrated)."
+            )
+            lines.append("")
+            rows = apdex_by_path(records, apdex_threshold, top)
+            if rows:
+                lines.append("| Path | Score | Requests |")
+                lines.append("| --- | --- | --- |")
+                for row in rows:
+                    lines.append(f"| `{row['path']}` | {row['score']:.3f} | {row['samples']} |")
+                lines.append("")
 
     if timestamps:
         buckets = bucket_records(records, bucket_seconds)
