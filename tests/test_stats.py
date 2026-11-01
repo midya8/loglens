@@ -1,7 +1,8 @@
 import unittest
 
 from loglens.parse import LogRecord
-from loglens.stats import status_classes, top_methods, top_referers, top_user_agents
+from loglens.stats import (path_status_breakdown, status_classes, top_methods,
+                           top_referers, top_user_agents)
 from loglens.stats import (
     error_rate,
     hourly_breakdown,
@@ -255,3 +256,37 @@ class TestHourlyBreakdown(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPathStatusBreakdown(unittest.TestCase):
+    def rec(self, path, status):
+        return LogRecord(timestamp="t", method="GET", path=path, status=status)
+
+    def test_counts_per_code_and_threshold(self):
+        records = [self.rec("/a", s) for s in (200, 404, 500, 500, 502)]
+        rows = path_status_breakdown(records)
+        self.assertEqual(rows, [{
+            "path": "/a", "requests": 5, "failing": 4,
+            "statuses": {404: 1, 500: 2, 502: 1},
+        }])
+
+    def test_clean_paths_omitted(self):
+        records = [self.rec("/ok", 200), self.rec("/bad", 500)]
+        rows = path_status_breakdown(records)
+        self.assertEqual([r["path"] for r in rows], ["/bad"])
+
+    def test_worst_first_with_volume_tiebreak(self):
+        records = ([self.rec("/busy", 200)] * 5 + [self.rec("/busy", 500)]
+                   + [self.rec("/quiet", 500)])
+        rows = path_status_breakdown(records)
+        self.assertEqual([r["path"] for r in rows], ["/busy", "/quiet"])
+
+    def test_limit(self):
+        records = [self.rec(f"/p{i}", 500) for i in range(20)]
+        self.assertEqual(len(path_status_breakdown(records, limit=3)), 3)
+
+    def test_threshold_500_excludes_4xx(self):
+        records = [self.rec("/a", 404), self.rec("/a", 500)]
+        rows = path_status_breakdown(records, threshold=500)
+        self.assertEqual(rows[0]["statuses"], {500: 1})
+        self.assertEqual(rows[0]["failing"], 1)
