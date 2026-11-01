@@ -34,6 +34,7 @@ python -m loglens app.log --report "Checkout 5xx spike"     # Markdown incident 
 python -m loglens app.log --by-path                          # per-path volume/errors/p95
 python -m loglens app.log --by-ip                            # per-client volume/errors/p95
 python -m loglens app.log --by-hour                          # hour-of-day pattern (UTC)
+python -m loglens app.log --by-size                          # bandwidth: total bytes, heaviest paths
 python -m loglens app.log --spikes                           # flare-up windows from spike buckets
 python -m loglens app.log --throughput                       # mean/peak per-bucket throughput
 python -m loglens app.log --latency-dist                     # latency shape over fixed ms buckets
@@ -102,6 +103,13 @@ print("ips behind 5xx:", top_error_ips(records))
   client retry-storming us?". `--by-hour` buckets the whole window by
   UTC hour of day, so a daily pattern - the nightly batch job, the lunch
   peak - stands out in a multi-day log.
+- **Response sizes.** `--by-size` turns the bytes column into bandwidth
+  answers: total bytes served, mean and largest response, and the paths
+  ranked by bytes moved (with share of total) - because the most
+  requested path is not always the one moving the megabytes. Combined
+  logs' size field and JSON `size_bytes`/`body_bytes_sent`/`bytes`/`size`
+  keys are picked up automatically; logs without sizes print a note
+  instead of zeros.
 - **Methods, user agents and referers.** `--methods` answers "is the spike
   on writes or reads?" with method counts overall and behind 5xxs.
   `--agents` ranks user agents overall and
