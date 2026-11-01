@@ -121,6 +121,18 @@ class TestJsonOutput(unittest.TestCase):
         _, out = run(["--format", "json", "--json"])
         self.assertNotIn("top_user_agents", json.loads(out))
 
+    def test_methods_text_and_json(self):
+        _, out = run(["--methods"])
+        self.assertIn("Top 5 methods:", out)
+        _, out = run(["--methods", "--json"])
+        data = json.loads(out)
+        self.assertEqual(data["top_methods"], [{"method": "GET", "count": 3}])
+        self.assertEqual(data["top_error_methods"], [{"method": "GET", "count": 1}])
+
+    def test_methods_omitted_from_json_without_flag(self):
+        _, out = run(["--format", "json", "--json"])
+        self.assertNotIn("top_methods", json.loads(out))
+
     def test_by_path_sort_p95_json(self):
         _, out = run(["--format", "json", "--by-path", "--sort", "p95", "--json"])
         rows = json.loads(out)["path_breakdown"]
