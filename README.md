@@ -30,6 +30,7 @@ python -m loglens app.log --format json --json   # machine-readable summary for 
 python -m loglens app.log --split-at 2026-10-31T22:00:00Z   # before/after comparison
 python -m loglens app.log --report "Checkout 5xx spike"     # Markdown incident report
 python -m loglens app.log --by-path                          # per-path volume/errors/p95
+python -m loglens app.log --methods                          # top HTTP methods, incl. behind 5xxs
 python -m loglens app.log --agents                           # top user agents, incl. behind 5xxs
 python -m loglens app.log --referers                         # top referers, incl. behind 5xxs
 ```
@@ -77,7 +78,9 @@ print("ips behind 5xx:", top_error_ips(records))
 - **Per-path breakdown.** `--by-path` ranks endpoints by error count -
   or by volume or p95 latency with `--sort requests|p95` - with
   volume, error rate and p95 latency, so the path causing the pain leads.
-- **User agents and referers.** `--agents` ranks user agents overall and
+- **Methods, user agents and referers.** `--methods` answers "is the spike
+  on writes or reads?" with method counts overall and behind 5xxs.
+  `--agents` ranks user agents overall and
   behind 5xxs - the fast answer to "is this spike a bot or real users?" -
   and `--referers` does the same for referers, answering "which page were
   users on when it broke?" Combined-format referer/agent fields and JSON
