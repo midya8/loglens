@@ -28,6 +28,7 @@ python -m loglens app.log --format json --json   # machine-readable summary for 
 python -m loglens app.log --split-at 2026-10-31T22:00:00Z   # before/after comparison
 python -m loglens app.log --report "Checkout 5xx spike"     # Markdown incident report
 python -m loglens app.log --by-path                          # per-path volume/errors/p95
+python -m loglens app.log --agents                           # top user agents, incl. behind 5xxs
 ```
 
 Library:
@@ -70,6 +71,11 @@ print("ips behind 5xx:", top_error_ips(records))
   ticket.
 - **Per-path breakdown.** `--by-path` ranks endpoints by error count with
   volume, error rate and p95 latency, so the path causing the pain leads.
+- **User agents.** `--agents` ranks user agents overall and behind 5xxs -
+  the fast answer to "is this spike a bot or real users?" Combined-format
+  referer/agent fields and JSON `user_agent`/`agent` keys are picked up
+  automatically, and incident reports list the agents behind 5xxs when the
+  log carries them.
 - **Graceful degradation.** Unparseable lines are skipped, not fatal - real
   log files are mixed and partially corrupt.
 - **Two formats, one record.** Combined-format and JSON parsers both emit the

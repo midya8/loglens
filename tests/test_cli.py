@@ -61,6 +61,33 @@ class TestJsonOutput(unittest.TestCase):
         self.assertIn("50.0% before, 0.0% after (-50.0%)", out)
         self.assertIn("- **Recovered paths:** `/b`", out)
 
+    def test_agents_text_and_json(self):
+        log = LOG + '{"time":"2026-10-31T22:06:00Z","method":"GET","path":"/c","status":503,"user_agent":"Go-http-client/1.1"}\n'
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(log)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                main(["--format", "json", "--agents", str(path)])
+            out = buf.getvalue()
+        self.assertIn("Top 5 user agents: [('Go-http-client/1.1', 1)]", out)
+        self.assertIn("Top 5 error user agents: [('Go-http-client/1.1', 1)]", out)
+
+    def test_agents_in_json_summary(self):
+        log = LOG + '{"time":"2026-10-31T22:06:00Z","method":"GET","path":"/c","status":503,"user_agent":"Go-http-client/1.1"}\n'
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(log)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                main(["--format", "json", "--agents", "--json", str(path)])
+            data = json.loads(buf.getvalue())
+        self.assertEqual(data["top_error_user_agents"], [{"user_agent": "Go-http-client/1.1", "count": 1}])
+
+    def test_agents_omitted_from_json_without_flag(self):
+        _, out = run(["--format", "json", "--json"])
+        self.assertNotIn("top_user_agents", json.loads(out))
+
     def test_report_without_split_at_has_no_comparison(self):
         _, out = run(["--format", "json", "--report", "T"])
         self.assertNotIn("## Before/after", out)

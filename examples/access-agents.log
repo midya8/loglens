@@ -1,0 +1,5 @@
+10.0.0.1 - - [30/Oct/2026:14:05:01 +0000] "GET /api/orders HTTP/1.1" 200 1234 "https://shop.example/orders" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/130.0 Safari/537.36" 0.012
+10.0.0.2 - - [30/Oct/2026:14:05:04 +0000] "POST /api/checkout HTTP/1.1" 500 212 "https://shop.example/cart" "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1" 1.843
+10.0.0.3 - - [30/Oct/2026:14:05:08 +0000] "POST /api/checkout HTTP/1.1" 503 198 "-" "Go-http-client/1.1" 2.407
+10.0.0.3 - - [30/Oct/2026:14:05:10 +0000] "POST /api/checkout HTTP/1.1" 503 201 "-" "Go-http-client/1.1" 2.391
+10.0.0.1 - - [30/Oct/2026:14:05:12 +0000] "GET /api/health HTTP/1.1" 200 12 "-" "kube-probe/1.30" 0.002

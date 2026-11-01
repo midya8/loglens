@@ -17,6 +17,7 @@ from .stats import (
     status_distribution,
     top_error_ips,
     top_paths,
+    top_user_agents,
 )
 from .timeline import bucket_records, format_timeline
 
@@ -37,6 +38,8 @@ def main(argv=None) -> int:
                         help="emit a Markdown incident report instead of the text summary")
     parser.add_argument("--by-path", action="store_true",
                         help="per-path breakdown: volume, error rate, p95 latency, worst first")
+    parser.add_argument("--agents", action="store_true",
+                        help="top user agents overall and behind 5xxs (bot vs real users)")
     args = parser.parse_args(argv)
 
     import sys
@@ -83,6 +86,9 @@ def main(argv=None) -> int:
             p95 = f"{row['p95_ms']:.0f} ms" if row['p95_ms'] is not None else "-"
             print(f"  {row['path']:40s} {row['requests']:>6} {row['errors']:>4} "
                   f"{row['error_rate']:>6.0%} {p95:>9}")
+    if args.agents:
+        print(f"Top {args.top} user agents:", top_user_agents(records, args.top))
+        print(f"Top {args.top} error user agents:", top_user_agents(records, args.top, errors_only=True))
     if args.latency:
         summary = latency_summary(records)
         if summary is None:
@@ -130,6 +136,15 @@ def _summary(records, args, comparison=None) -> dict:
         ]
     if getattr(args, "by_path", False):
         summary["path_breakdown"] = path_breakdown(records, args.top)
+    if getattr(args, "agents", False):
+        summary["top_user_agents"] = [
+            {"user_agent": agent, "count": count}
+            for agent, count in top_user_agents(records, args.top)
+        ]
+        summary["top_error_user_agents"] = [
+            {"user_agent": agent, "count": count}
+            for agent, count in top_user_agents(records, args.top, errors_only=True)
+        ]
     if comparison is not None:
         summary["comparison"] = {
             "split_at": comparison.split_at.isoformat(),
