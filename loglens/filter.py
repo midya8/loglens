@@ -41,6 +41,39 @@ def filter_records(
     return kept
 
 
+def parse_status_spec(value: str) -> tuple[frozenset[int], frozenset[int]]:
+    """Parse a --status value like '5xx,404' into (exact codes, classes).
+
+    Classes are the hundreds digit (5 for 5xx). Raises ValueError on
+    anything that is not a three-digit code or an Nxx class pattern.
+    """
+    codes: set[int] = set()
+    classes: set[int] = set()
+    for part in value.split(","):
+        part = part.strip().lower()
+        if len(part) == 3 and part[0].isdigit() and part[1:] == "xx":
+            classes.add(int(part[0]))
+        elif part.isdigit() and len(part) == 3:
+            codes.add(int(part))
+        else:
+            raise ValueError(f"unparseable status spec: {part!r} (want e.g. 5xx, 404)")
+    if not codes and not classes:
+        raise ValueError("empty status spec")
+    return frozenset(codes), frozenset(classes)
+
+
+def filter_by_status(
+    records: list[LogRecord],
+    codes: frozenset[int],
+    classes: frozenset[int],
+) -> list[LogRecord]:
+    """Keep records whose status is an exact match or inside a listed class."""
+    return [
+        r for r in records
+        if r.status in codes or r.status // 100 in classes
+    ]
+
+
 def parse_bound(value: str) -> datetime:
     """Parse a --since/--until CLI value; raises ValueError on bad input."""
     parsed = parse_timestamp(value)
