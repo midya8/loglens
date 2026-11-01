@@ -7,6 +7,7 @@ same statistics the CLI prints into a shareable Markdown section.
 
 from __future__ import annotations
 
+from .compare import WindowComparison
 from .parse import LogRecord
 from .stats import (
     error_rate,
@@ -29,8 +30,13 @@ def render_incident_report(
     title: str = "Log analysis",
     bucket_seconds: int = 60,
     top: int = 5,
+    comparison: WindowComparison | None = None,
 ) -> str:
-    """Render records as a Markdown incident report."""
+    """Render records as a Markdown incident report.
+
+    When *comparison* is given (from ``compare_windows``), a before/after
+    section is included so the report stands alone as a deploy writeup.
+    """
     lines = [f"# {title}", ""]
     if not records:
         lines.append("No parseable records in input.")
@@ -48,6 +54,33 @@ def render_incident_report(
     )
     lines.append(f"- **Status distribution:** {distribution}")
     lines.append("")
+
+    if comparison is not None:
+        sign = "+" if comparison.error_rate_delta >= 0 else ""
+        lines.append(f"## Before/after {comparison.split_at.isoformat()}")
+        lines.append("")
+        lines.append(
+            f"- **Requests:** {comparison.before_requests} before, "
+            f"{comparison.after_requests} after"
+        )
+        lines.append(
+            f"- **Error rate:** {comparison.before_error_rate:.1%} before, "
+            f"{comparison.after_error_rate:.1%} after "
+            f"({sign}{comparison.error_rate_delta:.1%})"
+        )
+        if comparison.new_error_paths:
+            lines.append(
+                "- **New failing paths:** "
+                + ", ".join(f"`{p}`" for p in comparison.new_error_paths)
+            )
+        if comparison.resolved_error_paths:
+            lines.append(
+                "- **Recovered paths:** "
+                + ", ".join(f"`{p}`" for p in comparison.resolved_error_paths)
+            )
+        if not comparison.new_error_paths and not comparison.resolved_error_paths:
+            lines.append("- **Error paths:** no change")
+        lines.append("")
 
     error_paths = top_paths(records, top, errors_only=True)
     if error_paths:
