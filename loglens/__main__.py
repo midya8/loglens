@@ -17,6 +17,7 @@ from .stats import (
     status_classes,
     status_distribution,
     top_error_ips,
+    top_methods,
     top_paths,
     top_referers,
     top_user_agents,
@@ -48,6 +49,8 @@ def main(argv=None) -> int:
                         help="per-path breakdown: volume, error rate, p95 latency, worst first")
     parser.add_argument("--agents", action="store_true",
                         help="top user agents overall and behind 5xxs (bot vs real users)")
+    parser.add_argument("--methods", action="store_true",
+                        help="top HTTP methods overall and behind 5xxs (writes vs reads)")
     parser.add_argument("--referers", action="store_true",
                         help="top referers overall and behind 5xxs (which page broke)")
     args = parser.parse_args(argv)
@@ -108,6 +111,9 @@ def main(argv=None) -> int:
     if args.agents:
         print(f"Top {args.top} user agents:", top_user_agents(records, args.top))
         print(f"Top {args.top} error user agents:", top_user_agents(records, args.top, errors_only=True))
+    if args.methods:
+        print(f"Top {args.top} methods:", top_methods(records, args.top))
+        print(f"Top {args.top} error methods:", top_methods(records, args.top, errors_only=True))
     if args.referers:
         print(f"Top {args.top} referers:", top_referers(records, args.top))
         print(f"Top {args.top} error referers:", top_referers(records, args.top, errors_only=True))
@@ -167,6 +173,15 @@ def _summary(records, args, comparison=None) -> dict:
         summary["top_error_user_agents"] = [
             {"user_agent": agent, "count": count}
             for agent, count in top_user_agents(records, args.top, errors_only=True)
+        ]
+    if getattr(args, "methods", False):
+        summary["top_methods"] = [
+            {"method": method, "count": count}
+            for method, count in top_methods(records, args.top)
+        ]
+        summary["top_error_methods"] = [
+            {"method": method, "count": count}
+            for method, count in top_methods(records, args.top, errors_only=True)
         ]
     if getattr(args, "referers", False):
         summary["top_referers"] = [
