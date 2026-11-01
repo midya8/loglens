@@ -249,3 +249,52 @@ def latency_histogram(records: list[LogRecord]) -> list[dict]:
             counts[-1] += 1
     labels = [f"<={b:g}ms" for b in _LATENCY_BUCKETS_MS] + [f">{_LATENCY_BUCKETS_MS[-1]:g}ms"]
     return [{"bucket": label, "count": count} for label, count in zip(labels, counts)]
+
+
+def human_bytes(n: float) -> str:
+    """Format a byte count compactly: 950 B, 12.4 KB, 3.1 MB."""
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            if unit == "B":
+                return f"{int(n)} B"
+            return f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} GB"
+
+
+def size_summary(records: list[LogRecord]) -> dict | None:
+    """Aggregate response sizes: total, mean, max over records that carry one.
+
+    Returns None when no record has a size (e.g. logs without a bytes
+    field), so callers can skip the section instead of printing zeros.
+    """
+    sizes = [r.size_bytes for r in records if r.size_bytes is not None]
+    if not sizes:
+        return None
+    return {
+        "count": len(sizes),
+        "total_bytes": sum(sizes),
+        "mean_bytes": sum(sizes) / len(sizes),
+        "max_bytes": max(sizes),
+    }
+
+
+def top_paths_by_bytes(records: list[LogRecord], limit: int = 10) -> list[dict]:
+    """Per-path bytes served, largest first, with share of the total.
+
+    Bandwidth concentrates differently than request volume - the path
+    hammered most is not always the one moving the megabytes. This
+    ranking finds the heavy responses.
+    """
+    per_path: dict[str, dict] = {}
+    for r in records:
+        if r.size_bytes is None:
+            continue
+        entry = per_path.setdefault(r.path, {"path": r.path, "bytes": 0, "requests": 0})
+        entry["bytes"] += r.size_bytes
+        entry["requests"] += 1
+    total = sum(e["bytes"] for e in per_path.values())
+    ranked = sorted(per_path.values(), key=lambda e: (-e["bytes"], e["path"]))
+    for entry in ranked:
+        entry["share"] = entry["bytes"] / total if total else 0.0
+    return ranked[:limit]
