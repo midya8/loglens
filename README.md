@@ -65,7 +65,8 @@ print("ips behind 5xx:", top_error_ips(records))
 - **Incident reports.** `--report "Title"` renders the findings as a
   Markdown document - window, rates, failing paths, source IPs, a per-path
   breakdown table, latency, and the incident window (first and last spike
-  bucket plus the error peak) - ready to paste into an incident doc or
+  bucket plus the error peak); with `--split-at` it also opens a before/after
+  comparison across the deploy. Ready to paste into an incident doc or
   ticket.
 - **Per-path breakdown.** `--by-path` ranks endpoints by error count with
   volume, error rate and p95 latency, so the path causing the pain leads.
