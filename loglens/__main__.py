@@ -5,7 +5,8 @@ from __future__ import annotations
 import argparse
 import json
 
-from .compare import compare_windows, format_comparison
+from .compare import (compare_logs, compare_windows, format_comparison,
+                      format_log_comparison)
 from .filter import (filter_by_path_prefix, filter_by_status, filter_records,
                      parse_bound, parse_prefix_spec, parse_status_spec)
 from .parse import parse_lines
@@ -45,6 +46,9 @@ def main(argv=None) -> int:
     parser.add_argument("--json", action="store_true", help="emit the summary as JSON instead of text")
     parser.add_argument("--since", help="only include records at/after this timestamp")
     parser.add_argument("--until", help="only include records at/before this timestamp")
+    parser.add_argument("--vs", metavar="BASELINE_LOG",
+                        help="compare against a baseline log: error-rate delta, "
+                             "new/resolved error paths, biggest regressions, latency shift")
     parser.add_argument("--split-at", help="compare stats before/after this timestamp")
     parser.add_argument("--max-error-rate", type=float, metavar="FRACTION",
                         help="exit 1 when the 5xx rate exceeds FRACTION (0-1) - a pipeline health gate")
@@ -112,9 +116,18 @@ def main(argv=None) -> int:
         comparison = compare_windows(records, split_at)
     else:
         comparison = None
+    log_comparison = None
+    if args.vs:
+        try:
+            with open(args.vs) as baseline_fh:
+                baseline_records = parse_lines(baseline_fh, formats)
+        except OSError as exc:
+            print(f"error: cannot read baseline log: {exc}", file=sys.stderr)
+            return 2
+        log_comparison = compare_logs(baseline_records, records)
     gate = _gate(args, parser, records)
     if args.json:
-        summary = _summary(records, args, comparison)
+        summary = _summary(records, args, comparison, log_comparison)
         if gate is not None:
             summary["max_error_rate"] = args.max_error_rate
             summary["within_error_budget"] = gate == 0
@@ -137,6 +150,9 @@ def main(argv=None) -> int:
     if comparison is not None:
         print()
         print(format_comparison(comparison))
+    if log_comparison is not None:
+        print()
+        print(format_log_comparison(log_comparison))
     if args.errors:
         failing = [r for r in records if r.status >= 500]
         shown = failing[:args.top]
@@ -241,7 +257,7 @@ def _gate(args, parser, records) -> int | None:
     return 1 if error_rate(records) > args.max_error_rate else 0
 
 
-def _summary(records, args, comparison=None) -> dict:
+def _summary(records, args, comparison=None, log_comparison=None) -> dict:
     """Build the machine-readable summary for --json."""
     summary = {
         "parsed_records": len(records),
@@ -293,6 +309,22 @@ def _summary(records, args, comparison=None) -> dict:
         sizes = size_summary(records)
         summary["sizes"] = sizes
         summary["top_paths_by_bytes"] = top_paths_by_bytes(records, args.top)
+    if log_comparison is not None:
+        lc = log_comparison
+        summary["comparison"] = {
+            "baseline_requests": lc.baseline_requests,
+            "current_requests": lc.current_requests,
+            "baseline_error_rate": lc.baseline_error_rate,
+            "current_error_rate": lc.current_error_rate,
+            "error_rate_delta": lc.error_rate_delta,
+            "new_error_paths": list(lc.new_error_paths),
+            "resolved_error_paths": list(lc.resolved_error_paths),
+            "regressions": list(lc.regressions),
+            "baseline_p50_ms": lc.baseline_p50_ms,
+            "current_p50_ms": lc.current_p50_ms,
+            "baseline_p95_ms": lc.baseline_p95_ms,
+            "current_p95_ms": lc.current_p95_ms,
+        }
     if getattr(args, "throughput", False):
         summary["throughput"] = throughput_summary(bucket_records(records, args.bucket))
     if getattr(args, "latency_dist", False):

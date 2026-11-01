@@ -467,3 +467,53 @@ class TestBySize(unittest.TestCase):
                                  capture_output=True, text=True)
         self.assertEqual(out.returncode, 0)
         self.assertIn("no size data", out.stdout)
+
+
+class TestVsBaseline(unittest.TestCase):
+    def _logs(self, tmp):
+        import json as _json
+        from pathlib import Path as _Path
+        base = _Path(tmp) / "base.log"
+        cur = _Path(tmp) / "cur.log"
+        base.write_text(
+            '1.1.1.1 - - [30/Oct/2026:14:05:01 +0000] "GET /a HTTP/1.1" 200 10 "-" "x"\n'
+            '1.1.1.2 - - [30/Oct/2026:14:05:02 +0000] "GET /old HTTP/1.1" 500 10 "-" "x"\n')
+        cur.write_text(
+            '1.1.1.1 - - [30/Oct/2026:14:05:01 +0000] "GET /a HTTP/1.1" 200 10 "-" "x"\n'
+            '1.1.1.2 - - [30/Oct/2026:14:05:02 +0000] "GET /new HTTP/1.1" 503 10 "-" "x"\n')
+        return str(base), str(cur)
+
+    def test_vs_text_output(self):
+        import subprocess, sys
+        from tempfile import TemporaryDirectory as _TD
+        with _TD() as tmp:
+            base, cur = self._logs(tmp)
+            out = subprocess.run([sys.executable, "-m", "loglens", cur, "--vs", base],
+                                 capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0)
+        self.assertIn("Comparison vs baseline:", out.stdout)
+        self.assertIn("New error paths: /new", out.stdout)
+        self.assertIn("Resolved error paths: /old", out.stdout)
+
+    def test_vs_json_block(self):
+        import json as _json, subprocess, sys
+        from tempfile import TemporaryDirectory as _TD
+        with _TD() as tmp:
+            base, cur = self._logs(tmp)
+            out = subprocess.run([sys.executable, "-m", "loglens", cur, "--vs", base,
+                                  "--json"], capture_output=True, text=True)
+        self.assertEqual(out.returncode, 0)
+        comp = _json.loads(out.stdout)["comparison"]
+        self.assertEqual(comp["new_error_paths"], ["/new"])
+        self.assertEqual(comp["baseline_requests"], 2)
+
+    def test_missing_baseline_exit_2(self):
+        import subprocess, sys
+        from tempfile import TemporaryDirectory as _TD
+        with _TD() as tmp:
+            _, cur = self._logs(tmp)
+            out = subprocess.run([sys.executable, "-m", "loglens", cur,
+                                  "--vs", "/no/such.log"],
+                                 capture_output=True, text=True)
+        self.assertEqual(out.returncode, 2)
+        self.assertIn("cannot read baseline log", out.stderr)
