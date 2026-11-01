@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime, timezone
 
-from loglens.filter import filter_records, parse_bound
+from loglens.filter import filter_by_status, filter_records, parse_bound, parse_status_spec
 from loglens.parse import LogRecord
 
 
@@ -53,6 +53,42 @@ class TestFilterRecords(unittest.TestCase):
     def test_empty_result(self):
         since = parse_bound("2027-01-01T00:00:00Z")
         self.assertEqual(filter_records(self.records, since=since), [])
+
+
+class TestParseStatusSpec(unittest.TestCase):
+    def test_exact_codes_and_classes(self):
+        codes, classes = parse_status_spec("5xx,404")
+        self.assertEqual(codes, frozenset({404}))
+        self.assertEqual(classes, frozenset({5}))
+
+    def test_multiple_classes_case_insensitive(self):
+        codes, classes = parse_status_spec("4XX, 5xx")
+        self.assertEqual(codes, frozenset())
+        self.assertEqual(classes, frozenset({4, 5}))
+
+    def test_invalid_spec_raises(self):
+        for bad in ("bogus", "5x", "5000", "xx", ""):
+            with self.assertRaises(ValueError):
+                parse_status_spec(bad)
+
+
+class TestFilterByStatus(unittest.TestCase):
+    def rec(self, status):
+        return LogRecord(timestamp="t", method="GET", path="/x", status=status)
+
+    def test_class_filter(self):
+        records = [self.rec(200), self.rec(404), self.rec(500), self.rec(503)]
+        kept = filter_by_status(records, *parse_status_spec("5xx"))
+        self.assertEqual([r.status for r in kept], [500, 503])
+
+    def test_exact_code_plus_class(self):
+        records = [self.rec(200), self.rec(404), self.rec(500)]
+        kept = filter_by_status(records, *parse_status_spec("404,5xx"))
+        self.assertEqual([r.status for r in kept], [404, 500])
+
+    def test_no_match_returns_empty(self):
+        kept = filter_by_status([self.rec(200)], *parse_status_spec("5xx"))
+        self.assertEqual(kept, [])
 
 
 class TestParseBound(unittest.TestCase):
