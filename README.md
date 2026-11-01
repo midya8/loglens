@@ -34,6 +34,7 @@ python -m loglens app.log --report "Checkout 5xx spike"     # Markdown incident 
 python -m loglens app.log --by-path                          # per-path volume/errors/p95
 python -m loglens app.log --by-ip                            # per-client volume/errors/p95
 python -m loglens app.log --by-hour                          # hour-of-day pattern (UTC)
+python -m loglens app.log --spikes                           # flare-up windows from spike buckets
 python -m loglens app.log --errors                           # list the 5xx requests themselves
 python -m loglens app.log --methods                          # top HTTP methods, incl. behind 5xxs
 python -m loglens app.log --agents                           # top user agents, incl. behind 5xxs
@@ -83,6 +84,9 @@ print("ips behind 5xx:", top_error_ips(records))
   behind the 5xxs, a per-path breakdown table, latency, and the incident
   window (first and last spike bucket plus the error peak); with
   `--split-at` it also opens a before/after comparison across the deploy.
+  Outside the report, `--spikes` groups consecutive spike buckets into
+  flare-up windows (start, end, requests, errors, rate) in the text and
+  JSON output.
   Ready to paste into an incident doc or ticket.
 - **Per-path and per-client breakdowns.** `--by-path` ranks endpoints by
   error count - or by volume or p95 latency with `--sort requests|p95` -

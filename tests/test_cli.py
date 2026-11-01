@@ -341,5 +341,43 @@ class TestByHourCLI(unittest.TestCase):
         assert "Per-hour breakdown" not in out
 
 
+class TestSpikesCLI(unittest.TestCase):
+    LOG = """\
+{"time":"2026-10-31T22:00:01Z","method":"GET","path":"/a","status":500}
+{"time":"2026-10-31T22:00:20Z","method":"GET","path":"/b","status":503}
+{"time":"2026-10-31T22:01:10Z","method":"GET","path":"/a","status":500}
+{"time":"2026-10-31T22:01:40Z","method":"GET","path":"/a","status":500}
+{"time":"2026-10-31T22:09:00Z","method":"GET","path":"/a","status":200}
+"""
+
+    def run_log(self, argv):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(self.LOG)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = main(argv + [str(path)])
+            return code, buf.getvalue()
+
+    def test_spikes_text(self):
+        code, out = self.run_log(["--spikes"])
+        assert code == 0
+        assert "Spike windows (1):" in out
+        assert "2026-10-31 22:00 - 22:02" in out
+
+    def test_spikes_json(self):
+        code, out = self.run_log(["--json", "--spikes"])
+        assert code == 0
+        windows = json.loads(out)["spike_windows"]
+        assert len(windows) == 1
+        assert windows[0]["errors"] == 4
+        assert windows[0]["requests"] == 4
+
+    def test_spikes_none(self):
+        code, out = run(["--spikes"])
+        assert code == 0
+        assert "Spike windows: none" in out
+
+
 if __name__ == "__main__":
     unittest.main()
