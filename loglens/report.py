@@ -11,6 +11,7 @@ from .parse import LogRecord
 from .stats import (
     error_rate,
     latency_summary,
+    path_breakdown,
     slowest_requests,
     status_distribution,
     top_error_ips,
@@ -62,6 +63,20 @@ def render_incident_report(
         lines.append("")
         for ip, count in error_ips:
             lines.append(f"- {ip} - {_plural(count, 'error')}")
+        lines.append("")
+
+    breakdown = path_breakdown(records, top)
+    if breakdown:
+        lines.append("## Per-path breakdown")
+        lines.append("")
+        lines.append("| Path | Requests | Errors | Error rate | p95 |")
+        lines.append("| --- | --- | --- | --- | --- |")
+        for row in breakdown:
+            p95 = f"{row['p95_ms']:.0f} ms" if row["p95_ms"] is not None else "-"
+            lines.append(
+                f"| `{row['path']}` | {row['requests']} | {row['errors']} | "
+                f"{row['error_rate']:.0%} | {p95} |"
+            )
         lines.append("")
 
     latency = latency_summary(records)

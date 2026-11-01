@@ -54,6 +54,12 @@ class TestRenderIncidentReport(unittest.TestCase):
         records = [rec("2026-10-31T22:00:01Z", "/a", 200)]
         self.assertNotIn("## Peak", render_incident_report(records))
 
+    def test_per_path_breakdown_table(self):
+        out = render_incident_report(self.records)
+        self.assertIn("## Per-path breakdown", out)
+        self.assertIn("| `/b` | 1 | 1 | 100% | 900 ms |", out)
+        self.assertIn("| `/a` | 2 | 0 | 0% | 10 ms |", out)
+
     def test_no_sections_without_errors(self):
         records = [rec("2026-10-31T22:00:01Z", "/a", 200, 5.0)]
         out = render_incident_report(records)

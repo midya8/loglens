@@ -63,8 +63,9 @@ print("ips behind 5xx:", top_error_ips(records))
   side of a deploy or alert: error-rate delta, newly failing paths, and
   paths that recovered.
 - **Incident reports.** `--report "Title"` renders the findings as a
-  Markdown document - window, rates, failing paths, source IPs, latency,
-  and the error peak - ready to paste into an incident doc or ticket.
+  Markdown document - window, rates, failing paths, source IPs, a per-path
+  breakdown table, latency, and the error peak - ready to paste into an
+  incident doc or ticket.
 - **Per-path breakdown.** `--by-path` ranks endpoints by error count with
   volume, error rate and p95 latency, so the path causing the pain leads.
 - **Graceful degradation.** Unparseable lines are skipped, not fatal - real
