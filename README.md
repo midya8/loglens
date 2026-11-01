@@ -33,6 +33,7 @@ python -m loglens app.log --split-at 2026-10-31T22:00:00Z   # before/after compa
 python -m loglens app.log --report "Checkout 5xx spike"     # Markdown incident report
 python -m loglens app.log --by-path                          # per-path volume/errors/p95
 python -m loglens app.log --by-ip                            # per-client volume/errors/p95
+python -m loglens app.log --errors                           # list the 5xx requests themselves
 python -m loglens app.log --methods                          # top HTTP methods, incl. behind 5xxs
 python -m loglens app.log --agents                           # top user agents, incl. behind 5xxs
 python -m loglens app.log --referers                         # top referers, incl. behind 5xxs
@@ -95,7 +96,10 @@ print("ips behind 5xx:", top_error_ips(records))
   users on when it broke?" Combined-format referer/agent fields and JSON
   `user_agent`/`agent`/`referer`/`referrer` keys are picked up
   automatically, and incident reports list all three behind 5xxs when the
-  log carries them.
+  log carries them. `--errors` lists the failing requests themselves
+  (timestamp, client, method, path, status, duration), capped by `--top`
+  with a "+N more" note - the fastest way from "the rate spiked" to the
+  exact requests that failed.
 - **Graceful degradation.** Unparseable lines are skipped, not fatal - real
   log files are mixed and partially corrupt. Format detection is per line
   (`--format auto`, the default), so a file that switches between combined

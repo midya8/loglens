@@ -174,6 +174,52 @@ class TestJsonOutput(unittest.TestCase):
         _, out = run(["--format", "json", "--json"])
         self.assertNotIn("top_methods", json.loads(out))
 
+    def test_errors_text(self):
+        code, out = run(["--errors", "--top", "1"])
+        self.assertEqual(code, 0)
+        self.assertIn("5xx requests (1 total, showing 1):", out)
+        self.assertIn("GET /b -> 500 900 ms", out)
+
+    def test_errors_more_note(self):
+        log = "\n".join(
+            f'{{"time":"2026-10-31T22:00:0{i}Z","method":"GET","path":"/p{i}",'
+            f'"status":500,"ip":"10.0.0.{i}"}}' for i in range(1, 4)
+        ) + "\n"
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(log)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = main(["--errors", "--top", "2", str(path)])
+            self.assertEqual(code, 0)
+            out = buf.getvalue()
+        self.assertIn("5xx requests (3 total, showing 2):", out)
+        self.assertIn("... and 1 more", out)
+
+    def test_errors_json(self):
+        _, out = run(["--errors", "--json"])
+        data = json.loads(out)
+        self.assertEqual(data["error_request_count"], 1)
+        self.assertEqual(data["error_requests"][0]["path"], "/b")
+        self.assertEqual(data["error_requests"][0]["status"], 500)
+
+    def test_errors_json_omitted_without_flag(self):
+        _, out = run(["--format", "json", "--json"])
+        self.assertNotIn("error_requests", json.loads(out))
+
+    def test_errors_none_failing(self):
+        log = '{"time":"2026-10-31T22:00:01Z","method":"GET","path":"/a","status":200}\n'
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(log)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = main(["--errors", str(path)])
+            self.assertEqual(code, 0)
+            out = buf.getvalue()
+        self.assertIn("5xx requests (0 total, showing 0):", out)
+        self.assertNotIn("... and", out)
+
     def test_by_ip_text_and_json(self):
         log = (
             '{"time":"2026-10-31T22:00:01Z","method":"GET","path":"/a","status":200,"ip":"10.0.0.1"}\n'

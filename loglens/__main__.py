@@ -51,6 +51,8 @@ def main(argv=None) -> int:
                         help="emit a Markdown incident report instead of the text summary")
     parser.add_argument("--sort", choices=("errors", "requests", "p95"), default="errors",
                         help="ordering for --by-path/--by-ip: errors (default), requests, or p95 latency")
+    parser.add_argument("--errors", action="store_true",
+                        help="list the 5xx requests themselves (up to --top), in log order")
     parser.add_argument("--by-ip", action="store_true",
                         help="per-source-IP breakdown: volume, error rate, p95 latency, worst first")
     parser.add_argument("--by-path", action="store_true",
@@ -120,6 +122,16 @@ def main(argv=None) -> int:
     if comparison is not None:
         print()
         print(format_comparison(comparison))
+    if args.errors:
+        failing = [r for r in records if r.status >= 500]
+        shown = failing[:args.top]
+        print(f"\n5xx requests ({len(failing)} total, showing {len(shown)}):")
+        for r in shown:
+            duration = f" {r.duration_ms:.0f} ms" if r.duration_ms is not None else ""
+            ip = f"{r.source_ip} " if r.source_ip else ""
+            print(f"  {r.timestamp} {ip}{r.method} {r.path} -> {r.status}{duration}")
+        if len(failing) > len(shown):
+            print(f"  ... and {len(failing) - len(shown)} more (raise --top to see them)")
     if args.by_ip:
         print(f"\nPer-IP breakdown (top {args.top}):")
         print(f"  {'ip':40s} {'req':>6} {'err':>4} {'rate':>6} {'p95':>9}")
@@ -204,6 +216,14 @@ def _summary(records, args, comparison=None) -> dict:
              "errors": b.errors, "error_rate": b.error_rate}
             for b in bucket_records(records, args.bucket)
         ]
+    if getattr(args, "errors", False):
+        failing = [r for r in records if r.status >= 500]
+        summary["error_requests"] = [
+            {"timestamp": r.timestamp, "ip": r.source_ip, "method": r.method,
+             "path": r.path, "status": r.status, "duration_ms": r.duration_ms}
+            for r in failing[:args.top]
+        ]
+        summary["error_request_count"] = len(failing)
     if getattr(args, "by_ip", False):
         summary["ip_breakdown"] = ip_breakdown(records, args.top, sort=args.sort)
     if getattr(args, "by_path", False):
