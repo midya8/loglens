@@ -24,6 +24,39 @@ def run(argv):
         return code, buf.getvalue()
 
 
+MIXED = """10.0.0.1 - - [30/Oct/2026:14:05:01 +0000] "GET /a HTTP/1.1" 200 100
+{"time":"2026-10-31T22:00:01Z","method":"GET","path":"/b","status":500}
+"""
+
+
+class TestFormatDetection(unittest.TestCase):
+    def run_file(self, argv, content):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(content)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = main(argv + [str(path)])
+            return code, buf.getvalue()
+
+    def test_auto_parses_mixed_file_by_default(self):
+        code, out = self.run_file([], MIXED)
+        self.assertEqual(code, 0)
+        self.assertIn("Parsed records: 2", out)
+        self.assertIn("Error rate (5xx): 50.0%", out)
+
+    def test_forced_json_skips_combined_lines(self):
+        code, out = self.run_file(["--format", "json"], MIXED)
+        self.assertEqual(code, 0)
+        self.assertIn("Parsed records: 1", out)
+
+    def test_forced_combined_skips_json_lines(self):
+        code, out = self.run_file(["--format", "combined"], MIXED)
+        self.assertEqual(code, 0)
+        self.assertIn("Parsed records: 1", out)
+        self.assertIn("200: 1", out)
+
+
 class TestJsonOutput(unittest.TestCase):
     def test_summary_shape(self):
         code, out = run(["--format", "json", "--json"])
