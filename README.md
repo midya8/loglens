@@ -32,6 +32,7 @@ python -m loglens app.log --format json --json   # machine-readable summary for 
 python -m loglens app.log --split-at 2026-10-31T22:00:00Z   # before/after comparison
 python -m loglens app.log --report "Checkout 5xx spike"     # Markdown incident report
 python -m loglens app.log --by-path                          # per-path volume/errors/p95
+python -m loglens app.log --by-ip                            # per-client volume/errors/p95
 python -m loglens app.log --methods                          # top HTTP methods, incl. behind 5xxs
 python -m loglens app.log --agents                           # top user agents, incl. behind 5xxs
 python -m loglens app.log --referers                         # top referers, incl. behind 5xxs
@@ -81,9 +82,11 @@ print("ips behind 5xx:", top_error_ips(records))
   window (first and last spike bucket plus the error peak); with
   `--split-at` it also opens a before/after comparison across the deploy.
   Ready to paste into an incident doc or ticket.
-- **Per-path breakdown.** `--by-path` ranks endpoints by error count -
-  or by volume or p95 latency with `--sort requests|p95` - with
-  volume, error rate and p95 latency, so the path causing the pain leads.
+- **Per-path and per-client breakdowns.** `--by-path` ranks endpoints by
+  error count - or by volume or p95 latency with `--sort requests|p95` -
+  with volume, error rate and p95 latency, so the path causing the pain
+  leads. `--by-ip` gives the same table per source IP, answering "is one
+  client retry-storming us?".
 - **Methods, user agents and referers.** `--methods` answers "is the spike
   on writes or reads?" with method counts overall and behind 5xxs.
   `--agents` ranks user agents overall and
