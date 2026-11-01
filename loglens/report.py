@@ -17,6 +17,7 @@ from .stats import (
     status_classes,
     status_distribution,
     top_error_ips,
+    top_methods,
     top_paths,
     top_referers,
     top_user_agents,
@@ -120,6 +121,14 @@ def render_incident_report(
         lines.append("")
         for referer, count in error_referers:
             lines.append(f"- `{referer}` - {_plural(count, 'error')}")
+        lines.append("")
+
+    error_methods = top_methods(records, top, errors_only=True)
+    if error_methods:
+        lines.append("## Methods behind 5xxs")
+        lines.append("")
+        for method, count in error_methods:
+            lines.append(f"- `{method}` - {_plural(count, 'error')}")
         lines.append("")
 
     breakdown = path_breakdown(records, top)

@@ -76,11 +76,11 @@ print("ips behind 5xx:", top_error_ips(records))
   side of a deploy or alert: error-rate delta, newly failing paths, and
   paths that recovered.
 - **Incident reports.** `--report "Title"` renders the findings as a
-  Markdown document - window, rates, failing paths, source IPs, a per-path
-  breakdown table, latency, and the incident window (first and last spike
-  bucket plus the error peak); with `--split-at` it also opens a before/after
-  comparison across the deploy. Ready to paste into an incident doc or
-  ticket.
+  Markdown document - window, rates, failing paths, source IPs, the methods
+  behind the 5xxs, a per-path breakdown table, latency, and the incident
+  window (first and last spike bucket plus the error peak); with
+  `--split-at` it also opens a before/after comparison across the deploy.
+  Ready to paste into an incident doc or ticket.
 - **Per-path breakdown.** `--by-path` ranks endpoints by error count -
   or by volume or p95 latency with `--sort requests|p95` - with
   volume, error rate and p95 latency, so the path causing the pain leads.
@@ -91,8 +91,8 @@ print("ips behind 5xx:", top_error_ips(records))
   and `--referers` does the same for referers, answering "which page were
   users on when it broke?" Combined-format referer/agent fields and JSON
   `user_agent`/`agent`/`referer`/`referrer` keys are picked up
-  automatically, and incident reports list both behind 5xxs when the log
-  carries them.
+  automatically, and incident reports list all three behind 5xxs when the
+  log carries them.
 - **Graceful degradation.** Unparseable lines are skipped, not fatal - real
   log files are mixed and partially corrupt. Format detection is per line
   (`--format auto`, the default), so a file that switches between combined
