@@ -86,7 +86,8 @@ print("ips behind 5xx:", top_error_ips(records))
   and JSON lines parses both; force one parser with `--format`.
 - **Two formats, one record.** Combined-format and JSON parsers both emit the
   same `LogRecord`, so stats code never cares about the source format.
-- **Tested statistics.** Status distribution, error rate, top-N and percentile
+- **Tested statistics.** Status distribution with a 2xx/3xx/4xx/5xx class
+  roll-up (the instant client-vs-server split), error rate, top-N and percentile
   behavior (including empty-input and boundary cases) are covered by unit tests.
 
 ## Tests
