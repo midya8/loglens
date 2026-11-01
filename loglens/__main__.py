@@ -42,6 +42,8 @@ def main(argv=None) -> int:
                         help="only include these statuses: exact codes and/or Nxx classes, comma-separated (e.g. 5xx,404)")
     parser.add_argument("--report", metavar="TITLE", nargs="?", const="Log analysis",
                         help="emit a Markdown incident report instead of the text summary")
+    parser.add_argument("--sort", choices=("errors", "requests", "p95"), default="errors",
+                        help="ordering for --by-path: errors (default), requests, or p95 latency")
     parser.add_argument("--by-path", action="store_true",
                         help="per-path breakdown: volume, error rate, p95 latency, worst first")
     parser.add_argument("--agents", action="store_true",
@@ -99,7 +101,7 @@ def main(argv=None) -> int:
     if args.by_path:
         print(f"\nPer-path breakdown (top {args.top}):")
         print(f"  {'path':40s} {'req':>6} {'err':>4} {'rate':>6} {'p95':>9}")
-        for row in path_breakdown(records, args.top):
+        for row in path_breakdown(records, args.top, sort=args.sort):
             p95 = f"{row['p95_ms']:.0f} ms" if row['p95_ms'] is not None else "-"
             print(f"  {row['path']:40s} {row['requests']:>6} {row['errors']:>4} "
                   f"{row['error_rate']:>6.0%} {p95:>9}")
@@ -156,7 +158,7 @@ def _summary(records, args, comparison=None) -> dict:
             for b in bucket_records(records, args.bucket)
         ]
     if getattr(args, "by_path", False):
-        summary["path_breakdown"] = path_breakdown(records, args.top)
+        summary["path_breakdown"] = path_breakdown(records, args.top, sort=args.sort)
     if getattr(args, "agents", False):
         summary["top_user_agents"] = [
             {"user_agent": agent, "count": count}

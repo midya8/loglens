@@ -121,6 +121,20 @@ class TestJsonOutput(unittest.TestCase):
         _, out = run(["--format", "json", "--json"])
         self.assertNotIn("top_user_agents", json.loads(out))
 
+    def test_by_path_sort_p95_json(self):
+        _, out = run(["--format", "json", "--by-path", "--sort", "p95", "--json"])
+        rows = json.loads(out)["path_breakdown"]
+        p95s = [r["p95_ms"] for r in rows]
+        self.assertEqual(p95s, sorted(p95s, reverse=True))
+
+    def test_by_path_sort_invalid_exits_2(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(LOG)
+            with self.assertRaises(SystemExit) as ctx:
+                main(["--by-path", "--sort", "bogus", str(path)])
+        self.assertEqual(ctx.exception.code, 2)
+
     def test_status_filter_scopes_summary(self):
         _, out = run(["--format", "json", "--status", "5xx", "--json"])
         data = json.loads(out)
