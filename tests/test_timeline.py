@@ -2,7 +2,10 @@ import unittest
 from datetime import datetime, timezone
 
 from loglens.parse import LogRecord
-from loglens.timeline import is_spike, bucket_records, format_timeline, parse_timestamp
+from loglens.timeline import (
+    Bucket, is_spike, bucket_records, format_timeline,
+    parse_timestamp, spike_windows,
+)
 
 
 def rec(ts, status=200):
@@ -112,6 +115,54 @@ class TestSpikeFlagging(unittest.TestCase):
         lines = out.splitlines()
         self.assertIn("<-- spike", lines[0])
         self.assertNotIn("<-- spike", lines[1])
+
+
+class TestSpikeWindows(unittest.TestCase):
+    @staticmethod
+    def bucket(minute, requests, errors):
+        return Bucket(
+            start=datetime(2026, 10, 31, 14, minute, tzinfo=timezone.utc),
+            requests=requests, errors=errors,
+        )
+
+    def test_adjacent_spikes_merge(self):
+        windows = spike_windows([
+            self.bucket(5, 10, 3), self.bucket(6, 10, 4), self.bucket(7, 10, 0),
+        ])
+        self.assertEqual(len(windows), 1)
+        self.assertEqual((windows[0].requests, windows[0].errors), (20, 7))
+        self.assertEqual((windows[0].start.minute, windows[0].end.minute), (5, 7))
+
+    def test_gap_splits_windows(self):
+        windows = spike_windows([
+            self.bucket(5, 10, 3), self.bucket(8, 10, 3),
+        ])
+        self.assertEqual(len(windows), 2)
+
+    def test_non_spike_between_splits(self):
+        windows = spike_windows([
+            self.bucket(5, 10, 3), self.bucket(6, 10, 1), self.bucket(7, 10, 3),
+        ])
+        self.assertEqual(len(windows), 2)
+
+    def test_only_spike_counts_aggregated(self):
+        windows = spike_windows([
+            self.bucket(5, 10, 3), self.bucket(6, 100, 0), self.bucket(7, 10, 3),
+        ])
+        total = sum(w.requests for w in windows)
+        self.assertEqual(total, 20)
+
+    def test_no_spikes(self):
+        self.assertEqual(spike_windows([self.bucket(5, 10, 1)]), [])
+        self.assertEqual(spike_windows([]), [])
+
+    def test_end_is_exclusive_bucket_boundary(self):
+        windows = spike_windows([self.bucket(5, 10, 3)], bucket_seconds=60)
+        self.assertEqual((windows[0].end - windows[0].start).total_seconds(), 60)
+
+    def test_invalid_bucket_seconds_rejected(self):
+        with self.assertRaises(ValueError):
+            spike_windows([], bucket_seconds=0)
 
 
 if __name__ == "__main__":
