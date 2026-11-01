@@ -74,6 +74,22 @@ def filter_by_status(
     ]
 
 
+def parse_prefix_spec(value: str) -> tuple[str, ...]:
+    """Parse a --path-prefix value like '/api,/health' into prefixes.
+
+    Raises ValueError on empty input or empty segments.
+    """
+    prefixes = tuple(part.strip() for part in value.split(","))
+    if not all(prefixes):
+        raise ValueError(f"unparseable path prefix spec: {value!r} (want e.g. /api,/health)")
+    return prefixes
+
+
+def filter_by_path_prefix(records: list[LogRecord], prefixes: tuple[str, ...]) -> list[LogRecord]:
+    """Keep records whose path starts with any listed prefix."""
+    return [r for r in records if r.path.startswith(prefixes)]
+
+
 def parse_bound(value: str) -> datetime:
     """Parse a --since/--until CLI value; raises ValueError on bad input."""
     parsed = parse_timestamp(value)
