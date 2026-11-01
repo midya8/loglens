@@ -83,13 +83,35 @@ def bucket_records(
     ]
 
 
-def format_timeline(buckets: list[Bucket]) -> str:
-    """Render buckets as a plain-text table with a simple error bar."""
+def is_spike(bucket: Bucket, min_error_rate: float = 0.25, min_errors: int = 2) -> bool:
+    """Whether a bucket's error rate is anomalous enough to flag.
+
+    Both conditions must hold so a single error in a quiet minute does not
+    read as a spike: at least *min_errors* errors AND an error rate of at
+    least *min_error_rate*.
+    """
+    if not 0 < min_error_rate <= 1:
+        raise ValueError(f"min_error_rate must be in (0, 1], got {min_error_rate!r}")
+    if min_errors < 1:
+        raise ValueError(f"min_errors must be >= 1, got {min_errors!r}")
+    return bucket.errors >= min_errors and bucket.error_rate >= min_error_rate
+
+
+def format_timeline(
+    buckets: list[Bucket],
+    spike_min_error_rate: float = 0.25,
+    spike_min_errors: int = 2,
+) -> str:
+    """Render buckets as a plain-text table with a simple error bar.
+
+    Buckets flagged as spikes by `is_spike` are marked with `<-- spike`.
+    """
     lines = []
     for bucket in buckets:
         bar = "#" * bucket.errors
+        marker = "  <-- spike" if is_spike(bucket, spike_min_error_rate, spike_min_errors) else ""
         lines.append(
             f"{bucket.start:%H:%M}  {bucket.requests:>5} req  "
-            f"{bucket.errors:>3} err  {bucket.error_rate:>5.0%}  {bar}"
+            f"{bucket.errors:>3} err  {bucket.error_rate:>5.0%}  {bar}{marker}"
         )
     return "\n".join(lines)
