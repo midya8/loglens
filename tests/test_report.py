@@ -96,6 +96,19 @@ class TestRenderIncidentReport(unittest.TestCase):
         self.assertIn("## User agents behind 5xxs", out)
         self.assertIn("`Go-http-client/1.1` - 1 error", out)
 
+    def test_referers_section(self):
+        records = [
+            LogRecord(timestamp="2026-10-31T22:00:01Z", method="GET", path="/a",
+                      status=500, source_ip="10.0.0.1", referer="https://shop.example/cart"),
+        ]
+        out = render_incident_report(records)
+        self.assertIn("## Referers behind 5xxs", out)
+        self.assertIn("`https://shop.example/cart` - 1 error", out)
+
+    def test_referers_section_omitted_without_referers(self):
+        out = render_incident_report(self.records)
+        self.assertNotIn("## Referers behind 5xxs", out)
+
     def test_user_agents_section_omitted_without_agents(self):
         out = render_incident_report(self.records)
         self.assertNotIn("## User agents behind 5xxs", out)
