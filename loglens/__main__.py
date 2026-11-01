@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 
+from .compare import compare_windows, format_comparison
 from .filter import filter_records, parse_bound
 from .parse import parse_lines
 from .stats import (
@@ -29,6 +30,7 @@ def main(argv=None) -> int:
     parser.add_argument("--json", action="store_true", help="emit the summary as JSON instead of text")
     parser.add_argument("--since", help="only include records at/after this timestamp")
     parser.add_argument("--until", help="only include records at/before this timestamp")
+    parser.add_argument("--split-at", help="compare stats before/after this timestamp")
     args = parser.parse_args(argv)
 
     import sys
@@ -42,8 +44,16 @@ def main(argv=None) -> int:
         except ValueError as exc:
             parser.error(str(exc))
         records = filter_records(records, since=since, until=until)
+    if args.split_at:
+        try:
+            split_at = parse_bound(args.split_at)
+        except ValueError as exc:
+            parser.error(str(exc))
+        comparison = compare_windows(records, split_at)
+    else:
+        comparison = None
     if args.json:
-        print(json.dumps(_summary(records, args), indent=2))
+        print(json.dumps(_summary(records, args, comparison), indent=2))
         return 0
     print(f"Parsed records: {len(records)}")
     print(f"Error rate (5xx): {error_rate(records):.1%}")
@@ -54,6 +64,9 @@ def main(argv=None) -> int:
     if args.timeline:
         print("\nTimeline (UTC):")
         print(format_timeline(bucket_records(records, args.bucket)))
+    if comparison is not None:
+        print()
+        print(format_comparison(comparison))
     if args.latency:
         summary = latency_summary(records)
         if summary is None:
@@ -66,7 +79,7 @@ def main(argv=None) -> int:
     return 0
 
 
-def _summary(records, args) -> dict:
+def _summary(records, args, comparison=None) -> dict:
     """Build the machine-readable summary for --json."""
     summary = {
         "parsed_records": len(records),
@@ -99,6 +112,17 @@ def _summary(records, args) -> dict:
              "errors": b.errors, "error_rate": b.error_rate}
             for b in bucket_records(records, args.bucket)
         ]
+    if comparison is not None:
+        summary["comparison"] = {
+            "split_at": comparison.split_at.isoformat(),
+            "before_requests": comparison.before_requests,
+            "after_requests": comparison.after_requests,
+            "before_error_rate": comparison.before_error_rate,
+            "after_error_rate": comparison.after_error_rate,
+            "error_rate_delta": comparison.error_rate_delta,
+            "new_error_paths": list(comparison.new_error_paths),
+            "resolved_error_paths": list(comparison.resolved_error_paths),
+        }
     return summary
 
 
