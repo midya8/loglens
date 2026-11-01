@@ -31,6 +31,22 @@ def top_error_ips(records: list[LogRecord], limit: int = 10) -> list[tuple[str, 
     return Counter(r.source_ip for r in records if r.status >= 500 and r.source_ip).most_common(limit)
 
 
+def top_user_agents(
+    records: list[LogRecord], limit: int = 10, errors_only: bool = False
+) -> list[tuple[str, int]]:
+    """Most frequent user agents, optionally only among 5xx responses.
+
+    Answers "is this spike a bot or real users?" - one scripted agent
+    behind every 5xx reads very differently from a mix of browsers.
+    Records without a user agent are skipped.
+    """
+    pool = (
+        r for r in records
+        if r.user_agent and (not errors_only or r.status >= 500)
+    )
+    return Counter(r.user_agent for r in pool).most_common(limit)
+
+
 def percentile(values: list[float], pct: float) -> float:
     """Nearest-rank percentile of a numeric sample.
 
