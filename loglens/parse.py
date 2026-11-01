@@ -33,6 +33,7 @@ class LogRecord:
     duration_ms: float | None = None
     user_agent: str = ""
     referer: str = ""
+    size_bytes: int | None = None
 
 
 def parse_combined(line: str) -> LogRecord | None:
@@ -49,6 +50,8 @@ def parse_combined(line: str) -> LogRecord | None:
     rt = _TRAILING_REQUEST_TIME.search(line)
     if rt:
         duration_ms = float(rt.group("rt")) * 1000.0
+    size_token = match.group("size")
+    size_bytes = None if size_token == "-" else int(size_token)
     return LogRecord(
         timestamp=match.group("time"),
         method=match.group("method"),
@@ -58,6 +61,7 @@ def parse_combined(line: str) -> LogRecord | None:
         duration_ms=duration_ms,
         user_agent=match.group("agent") or "",
         referer="" if (match.group("referer") or "") == "-" else (match.group("referer") or ""),
+        size_bytes=size_bytes,
     )
 
 
@@ -68,7 +72,8 @@ def parse_json_line(line: str) -> LogRecord | None:
     and ``status``; returns None when any are missing or the line is not
     valid JSON. A numeric ``duration_ms`` key is used as-is; a numeric
     ``request_time`` key (nginx-style seconds) is converted to
-    milliseconds. Both are optional.
+    milliseconds. Response size comes from the first numeric of
+    ``size_bytes``/``body_bytes_sent``/``bytes``/``size``. All optional.
     """
     try:
         data = json.loads(line)
@@ -85,6 +90,12 @@ def parse_json_line(line: str) -> LogRecord | None:
         duration_ms = float(data["request_time"]) * 1000.0
     if duration_ms is not None and not isinstance(duration_ms, (int, float)):
         duration_ms = None
+    size_bytes = None
+    for key in ("size_bytes", "body_bytes_sent", "bytes", "size"):
+        value = data.get(key)
+        if isinstance(value, (int, float)) and not isinstance(value, bool) and value >= 0:
+            size_bytes = int(value)
+            break
     return LogRecord(
         timestamp=str(timestamp),
         method=str(method),
@@ -94,6 +105,7 @@ def parse_json_line(line: str) -> LogRecord | None:
         source_ip=str(data.get("ip", "")),
         user_agent=str(data.get("user_agent") or data.get("agent") or ""),
         referer=str(data.get("referer") or data.get("referrer") or ""),
+        size_bytes=size_bytes,
     )
 
 
