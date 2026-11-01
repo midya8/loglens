@@ -12,6 +12,20 @@ def status_distribution(records: list[LogRecord]) -> dict[int, int]:
     return dict(Counter(r.status for r in records))
 
 
+def status_classes(records: list[LogRecord]) -> dict[str, int]:
+    """Roll statuses up into 2xx/3xx/4xx/5xx classes (plus other).
+
+    The at-a-glance split between client trouble (4xx) and server trouble
+    (5xx) - the first triage question in an incident. All five keys are
+    always present so JSON consumers can index directly.
+    """
+    classes = {"2xx": 0, "3xx": 0, "4xx": 0, "5xx": 0, "other": 0}
+    for record in records:
+        klass = f"{record.status // 100}xx" if 200 <= record.status < 600 else "other"
+        classes[klass] += 1
+    return classes
+
+
 def error_rate(records: list[LogRecord], threshold: int = 500) -> float:
     """Share of records with status >= threshold. 0.0 on empty input."""
     if not records:
