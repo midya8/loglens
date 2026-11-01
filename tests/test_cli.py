@@ -121,6 +121,33 @@ class TestJsonOutput(unittest.TestCase):
         _, out = run(["--format", "json", "--json"])
         self.assertNotIn("top_user_agents", json.loads(out))
 
+    def test_max_error_rate_gate(self):
+        # LOG is 1 error in 3 records (33%); gate at 25% fails, 50% passes
+        code, out = run(["--max-error-rate", "0.25"])
+        self.assertEqual(code, 1)
+        self.assertIn("GATE FAILED: error rate 33.3% exceeds --max-error-rate 25.0%", out)
+        code, out = run(["--max-error-rate", "0.5"])
+        self.assertEqual(code, 0)
+        self.assertIn("Gate passed", out)
+
+    def test_max_error_rate_json_fields_and_exit(self):
+        code, out = run(["--max-error-rate", "0.25", "--json"])
+        self.assertEqual(code, 1)
+        data = json.loads(out)
+        self.assertEqual(data["max_error_rate"], 0.25)
+        self.assertFalse(data["within_error_budget"])
+        code, out = run(["--max-error-rate", "0.5", "--json"])
+        self.assertEqual(code, 0)
+        self.assertTrue(json.loads(out)["within_error_budget"])
+
+    def test_max_error_rate_out_of_range_exits_2(self):
+        with TemporaryDirectory() as tmp:
+            path = Path(tmp) / "app.log"
+            path.write_text(LOG)
+            with self.assertRaises(SystemExit) as ctx:
+                main(["--max-error-rate", "1.5", str(path)])
+        self.assertEqual(ctx.exception.code, 2)
+
     def test_methods_text_and_json(self):
         _, out = run(["--methods"])
         self.assertIn("Top 5 methods:", out)
