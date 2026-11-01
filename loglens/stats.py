@@ -114,13 +114,16 @@ def slowest_requests(records: list[LogRecord], limit: int = 5) -> list[LogRecord
     return sorted(with_duration, key=lambda r: r.duration_ms, reverse=True)[:limit]
 
 
-def path_breakdown(records: list[LogRecord], limit: int = 10) -> list[dict]:
+def path_breakdown(records: list[LogRecord], limit: int = 10, sort: str = "errors") -> list[dict]:
     """Per-path volume, error rate and latency, worst offenders first.
 
-    Rows are sorted by error count, then total requests, so the path
-    causing the pain leads. Latency is p95 over the path's timed requests
-    (None when the path has none).
+    ``sort`` picks what "worst" means: ``errors`` (error count, then
+    volume - the path causing the pain leads), ``requests`` (busiest
+    first), or ``p95`` (slowest first, untimed paths last). Latency is p95
+    over the path's timed requests (None when the path has none).
     """
+    if sort not in ("errors", "requests", "p95"):
+        raise ValueError(f"unknown sort: {sort!r} (want errors, requests or p95)")
     by_path: dict[str, list[LogRecord]] = {}
     for record in records:
         by_path.setdefault(record.path, []).append(record)
@@ -135,5 +138,11 @@ def path_breakdown(records: list[LogRecord], limit: int = 10) -> list[dict]:
             "error_rate": errors / len(group),
             "p95_ms": percentile(durations, 95) if durations else None,
         })
-    rows.sort(key=lambda row: (-row["errors"], -row["requests"], row["path"]))
+    if sort == "p95":
+        rows.sort(key=lambda row: (row["p95_ms"] is None,
+                                   -(row["p95_ms"] or 0), -row["requests"], row["path"]))
+    elif sort == "requests":
+        rows.sort(key=lambda row: (-row["requests"], -row["errors"], row["path"]))
+    else:
+        rows.sort(key=lambda row: (-row["errors"], -row["requests"], row["path"]))
     return rows[:limit]
