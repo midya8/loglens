@@ -39,6 +39,8 @@ def main(argv=None) -> int:
     parser.add_argument("--since", help="only include records at/after this timestamp")
     parser.add_argument("--until", help="only include records at/before this timestamp")
     parser.add_argument("--split-at", help="compare stats before/after this timestamp")
+    parser.add_argument("--max-error-rate", type=float, metavar="FRACTION",
+                        help="exit 1 when the 5xx rate exceeds FRACTION (0-1) - a pipeline health gate")
     parser.add_argument("--status",
                         help="only include these statuses: exact codes and/or Nxx classes, comma-separated (e.g. 5xx,404)")
     parser.add_argument("--report", metavar="TITLE", nargs="?", const="Log analysis",
@@ -81,12 +83,17 @@ def main(argv=None) -> int:
         comparison = compare_windows(records, split_at)
     else:
         comparison = None
+    gate = _gate(args, parser, records)
     if args.json:
-        print(json.dumps(_summary(records, args, comparison), indent=2))
-        return 0
+        summary = _summary(records, args, comparison)
+        if gate is not None:
+            summary["max_error_rate"] = args.max_error_rate
+            summary["within_error_budget"] = gate == 0
+        print(json.dumps(summary, indent=2))
+        return gate or 0
     if args.report is not None:
         print(render_incident_report(records, title=args.report, bucket_seconds=args.bucket, top=args.top, comparison=comparison), end="")
-        return 0
+        return gate or 0
     print(f"Parsed records: {len(records)}")
     print(f"Error rate (5xx): {error_rate(records):.1%}")
     print("Status distribution:", dict(sorted(status_distribution(records).items())))
@@ -126,7 +133,22 @@ def main(argv=None) -> int:
             print(f"Slowest {args.top} requests:")
             for r in slowest_requests(records, args.top):
                 print(f"  {r.duration_ms:8.1f} ms  {r.method} {r.path} -> {r.status}")
-    return 0
+    if gate is not None:
+        rate = error_rate(records)
+        if gate:
+            print(f"\nGATE FAILED: error rate {rate:.1%} exceeds --max-error-rate {args.max_error_rate:.1%}")
+        else:
+            print(f"\nGate passed: error rate {rate:.1%} within --max-error-rate {args.max_error_rate:.1%}")
+    return gate or 0
+
+
+def _gate(args, parser, records) -> int | None:
+    """Evaluate --max-error-rate: None when unset, else 0 pass / 1 breach."""
+    if args.max_error_rate is None:
+        return None
+    if not 0.0 <= args.max_error_rate <= 1.0:
+        parser.error("--max-error-rate must be between 0 and 1")
+    return 1 if error_rate(records) > args.max_error_rate else 0
 
 
 def _summary(records, args, comparison=None) -> dict:
