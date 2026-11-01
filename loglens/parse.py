@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 _COMBINED = re.compile(
     r'^(?P<ip>\S+) \S+ \S+ \[(?P<time>[^\]]+)\] "(?P<method>\S+) (?P<path>\S+)[^"]*" '
-    r"(?P<status>\d{3}) (?P<size>\S+)"
+    r'(?P<status>\d{3}) (?P<size>\S+)(?: "[^"]*" "(?P<agent>[^"]*)")?'
 )
 
 # nginx configs that append $request_time log it as a fractional number of
@@ -31,13 +31,15 @@ class LogRecord:
     status: int
     source_ip: str = ""
     duration_ms: float | None = None
+    user_agent: str = ""
 
 
 def parse_combined(line: str) -> LogRecord | None:
     """Parse one nginx/Apache combined-format line.
 
-    A trailing fractional number is treated as nginx $request_time in
-    seconds and exposed as duration_ms.
+    The referer and user-agent fields are optional; the user agent is
+    captured when present. A trailing fractional number is treated as
+    nginx $request_time in seconds and exposed as duration_ms.
     """
     match = _COMBINED.match(line.strip())
     if not match:
@@ -53,6 +55,7 @@ def parse_combined(line: str) -> LogRecord | None:
         status=int(match.group("status")),
         source_ip=match.group("ip"),
         duration_ms=duration_ms,
+        user_agent=match.group("agent") or "",
     )
 
 
@@ -87,6 +90,7 @@ def parse_json_line(line: str) -> LogRecord | None:
         status=status,
         duration_ms=None if duration_ms is None else float(duration_ms),
         source_ip=str(data.get("ip", "")),
+        user_agent=str(data.get("user_agent") or data.get("agent") or ""),
     )
 
 
