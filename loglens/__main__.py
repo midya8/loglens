@@ -62,7 +62,7 @@ def main(argv=None) -> int:
         print(json.dumps(_summary(records, args, comparison), indent=2))
         return 0
     if args.report is not None:
-        print(render_incident_report(records, title=args.report, bucket_seconds=args.bucket, top=args.top), end="")
+        print(render_incident_report(records, title=args.report, bucket_seconds=args.bucket, top=args.top, comparison=comparison), end="")
         return 0
     print(f"Parsed records: {len(records)}")
     print(f"Error rate (5xx): {error_rate(records):.1%}")
