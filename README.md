@@ -2,17 +2,24 @@
 
 [![CI](https://github.com/midya8/loglens/actions/workflows/ci.yml/badge.svg)](https://github.com/midya8/loglens/actions/workflows/ci.yml)
 
-Dependency-free access-log analysis for incident work. Point it at an nginx /
-Apache combined log or structured JSON logs and get the numbers that matter in
-the first five minutes of an incident: error rate, status distribution, hottest
-paths, hottest failing paths, and the source IPs behind 5xxs. Standard library
-only, Python 3.10+.
+Standard-library access-log analysis for nginx / Apache combined logs and
+structured JSON logs. Reports include recorded error rates, status counts,
+paths, latency and source IPs behind 5xx responses. Python 3.10+.
 
-## Why
+## Choose a view
 
-During an incident nobody wants to remember `awk` incantations. `loglens`
-turns a log file into a one-screen summary, and its functions are importable
-so the same analysis can run inside bigger tooling.
+| Question | Flags |
+| --- | --- |
+| Which requests failed? | `--errors`, `--path-status`, `--by-path` |
+| When did recorded error rates rise? | `--timeline`, `--spikes`, `--bucket` |
+| How do two recorded windows differ? | `--split-at`, `--vs` |
+| What durations and response sizes are present? | `--latency`, `--latency-dist`, `--apdex`, `--by-size` |
+| Which recorded clients and metadata recur? | `--by-ip`, `--methods`, `--agents`, `--referers` |
+
+Statistics describe parsed log records, not the cause of an incident. Malformed
+lines are skipped; missing records or duration fields can change the picture.
+Client IPs and user-agent strings do not identify a person or establish bot
+activity. Compare windows with their traffic mix and coverage in mind.
 
 ## Usage
 
@@ -63,9 +70,9 @@ print("ips behind 5xx:", top_error_ips(records))
 ## Design notes
 
 - **Incident timeline.** `--timeline` buckets requests and 5xxs per minute
-  (or any bucket size) so you can see exactly when an incident started, and
+  (or any bucket size) to locate elevated error rates in the supplied records, and
   flags spike buckets where the error rate and count both clear a threshold
-  so a single error in a quiet minute never reads as a spike.
+  so a low-count bucket can be excluded by the configured count threshold.
 - **Latency view.** `--latency` reports p50/p95/p99 and the slowest requests
   from JSON logs carrying `duration_ms` or nginx-style `request_time`, and
   from combined-format logs with `$request_time` appended (a trailing
@@ -117,14 +124,14 @@ print("ips behind 5xx:", top_error_ips(records))
   server errors only. Also in `--json` as `path_status` rows.
 - **Per-path and per-client breakdowns.** `--by-path` ranks endpoints by
   error count - or by volume or p95 latency with `--sort requests|p95` -
-  with volume, error rate and p95 latency, so the path causing the pain
-  leads. `--by-ip` gives the same table per source IP, answering "is one
-  client retry-storming us?". `--by-hour` buckets the whole window by
+  with volume, error rate and p95 latency. `--by-ip` gives the same table per
+  source IP; it does not establish which client process sent a request.
+  `--by-hour` buckets the whole window by
   UTC hour of day, so a daily pattern - the nightly batch job, the lunch
   peak - stands out in a multi-day log.
-- **Baseline comparison.** `--vs baseline.log` answers "did this release
-  make things worse?" across two whole logs: error-rate delta, new and
-  resolved error paths, the paths with the biggest error-count increases
+- **Baseline comparison.** `--vs baseline.log` compares recorded outcomes
+  across two whole logs without attributing the change to a release:
+  error-rate delta, new and resolved error paths, the paths with the biggest error-count increases
   (ranked regressions), and p50/p95 latency shifts when both sides carry
   durations. Also available in `--json` as a `comparison` block.
 - **Response sizes.** `--by-size` turns the bytes column into bandwidth
@@ -137,9 +144,9 @@ print("ips behind 5xx:", top_error_ips(records))
 - **Methods, user agents and referers.** `--methods` answers "is the spike
   on writes or reads?" with method counts overall and behind 5xxs.
   `--agents` ranks user agents overall and
-  behind 5xxs - the fast answer to "is this spike a bot or real users?" -
-  and `--referers` does the same for referers, answering "which page were
-  users on when it broke?" Combined-format referer/agent fields and JSON
+  behind 5xxs - a view of the recorded agent strings, not a bot classifier -
+  and `--referers` does the same for recorded referer values.
+  Combined-format referer/agent fields and JSON
   `user_agent`/`agent`/`referer`/`referrer` keys are picked up
   automatically, and incident reports list all three behind 5xxs when the
   log carries them. `--errors` lists the failing requests themselves
